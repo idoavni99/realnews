@@ -10,13 +10,15 @@
   --right: #251f21; --center: #6e6769; --left: #b3acae;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.5; }
-.wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 48px; }
-header.top { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: 18px 16px 12px; border-bottom: 1px solid var(--hairline); }
+.wrap { max-width: 640px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
+header.top { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: calc(18px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--hairline); }
 header.top h1 { font-size: 20px; font-weight: 700; }
 header.top .meta { color: var(--ink2); font-size: 12px; margin-top: 2px; }
 .banner { background: #fff8e6; border: 1px solid #efe0b3; border-radius: 10px; padding: 10px 14px; margin: 14px 0 0; font-size: 13px; color: var(--ink2); }
-.card { display: block; background: var(--card); border-radius: 16px; padding: 18px; margin-top: 14px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(37,31,33,.05); }
+.card { display: block; background: var(--card); border-radius: 16px; padding: 18px; margin-top: 14px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(37,31,33,.05); transition: background .12s ease; }
+.card:active { background: #f6f3f1; }
 .card h2 { font-size: 17px; font-weight: 700; line-height: 1.4; }
 .card .sum { color: var(--ink2); font-size: 14px; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cov { margin-top: 14px; }
@@ -28,9 +30,9 @@ header.top .meta { color: var(--ink2); font-size: 12px; margin-top: 2px; }
 .nobar { font-size: 13px; color: var(--ink2); background: var(--bg); border-radius: 8px; padding: 8px 12px; }
 .overlay { position: fixed; inset: 0; background: var(--bg); z-index: 20; overflow-y: auto; display: none; }
 .overlay.open { display: block; }
-.ov-head { position: sticky; top: 0; background: var(--bg); padding: 14px 16px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; gap: 12px; }
+.ov-head { position: sticky; top: 0; background: var(--bg); padding: calc(14px + env(safe-area-inset-top)) 16px 14px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; gap: 12px; }
 .ov-head button { border: 1px solid var(--hairline); background: var(--card); border-radius: 20px; padding: 8px 16px; font-size: 14px; min-height: 44px; cursor: pointer; color: var(--ink); }
-.ov-body { max-width: 640px; margin: 0 auto; padding: 18px 16px 48px; }
+.ov-body { max-width: 640px; margin: 0 auto; padding: 18px 16px calc(48px + env(safe-area-inset-bottom)); }
 .ov-body h2 { font-size: 20px; line-height: 1.4; }
 .ov-body .sum { color: var(--ink2); font-size: 15px; margin-top: 10px; }
 h3.sec { font-size: 15px; margin: 22px 0 10px; }
@@ -40,6 +42,7 @@ h3.sec { font-size: 15px; margin: 22px 0 10px; }
 .src .go { color: var(--ink2); font-size: 12px; margin-top: 6px; }
 .side-tag { font-size: 11px; color: var(--ink2); border: 1px solid var(--hairline); border-radius: 10px; padding: 1px 8px; margin-inline-start: 8px; }
 footer.health { margin-top: 28px; color: var(--ink2); font-size: 12px; }
+.stale { color: #b04a4a; font-weight: 600; }
 footer.health .ok { color: #4a7d5d; } footer.health .bad { color: #b04a4a; }
 </style>
 </head>
@@ -78,6 +81,7 @@ function coverageHtml(story) {
 }
 
 function renderFeed() {
+  const staleH = (Date.now() - new Date(DATA.generated_at).getTime()) / 36e5;
   document.getElementById('feed').innerHTML = DATA.stories.map((s, i) => `
     <a class="card" href="#/story/${i}">
       <h2>${esc(s.headline)}</h2>
@@ -86,7 +90,8 @@ function renderFeed() {
     </a>`).join('') +
     `<footer class="health">מקורות: ${Object.entries(DATA.source_health).map(([id, h]) =>
       `<span class="${h.ok ? 'ok' : 'bad'}">${esc(h.name)}${h.ok ? '' : ' (תקלה)'}</span>`).join(' · ')}
-    <br>עודכן: ${new Date(DATA.generated_at).toLocaleString('he-IL')} · חלון ${DATA.window_hours} שעות</footer>`;
+    <br>עודכן: ${new Date(DATA.generated_at).toLocaleString('he-IL')} · חלון ${DATA.window_hours} שעות
+    ${staleH > 36 ? '<br><span class="stale">הנתונים לא התעדכנו לאחרונה - ייתכן שהריצה היומית מושהית.</span>' : ''}</footer>`;
 }
 
 function renderDetail(i) {
@@ -117,9 +122,18 @@ function route() {
   if (m) renderDetail(+m[1]); else document.getElementById('overlay').classList.remove('open');
 }
 
+function ago(iso) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 60) return 'לפני ' + m + ' דקות';
+  const h = Math.floor(m / 60);
+  if (h < 24) return 'לפני ' + (h === 1 ? 'שעה' : h + ' שעות');
+  const d = Math.floor(h / 24);
+  return 'לפני ' + (d === 1 ? 'יום' : d + ' ימים');
+}
+
 fetch('data.json').then(r => r.json()).then(d => {
   DATA = d;
-  document.getElementById('meta').textContent = 'עודכן ' + new Date(d.generated_at).toLocaleString('he-IL');
+  document.getElementById('meta').textContent = 'עודכן ' + ago(d.generated_at);
   const unmonitored = SIDE_ORDER.filter(s => !d.monitored_sides.includes(s));
   if (unmonitored.length) {
     const b = document.getElementById('banner');

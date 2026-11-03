@@ -30,10 +30,20 @@ interface Story {
   total: number; articles: StoryArticle[];
 }
 
+/** Trim to ~max chars at a sentence boundary, never mid-word. */
+function trimSentence(text: string, max = 400): string {
+  const t = text.slice(0, max);
+  if (text.length <= max) return t;
+  const cut = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? '), t.lastIndexOf('। '));
+  if (cut > max * 0.4) return t.slice(0, cut + 1);
+  const sp = t.lastIndexOf(' ');
+  return (sp > max * 0.5 ? t.slice(0, sp) : t) + '…';
+}
+
 function storySummary(items: FeedItem[]): string {
   const best = items.reduce((a, b) =>
     ((b.fulltext || b.summary).length > (a.fulltext || a.summary).length ? b : a));
-  return (best.fulltext || best.summary).slice(0, 400);
+  return trimSentence(best.fulltext || best.summary);
 }
 
 async function main() {
