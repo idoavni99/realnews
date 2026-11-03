@@ -1,0 +1,10 @@
+{
+  "name": "realnews",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node src/pipeline.ts",
+    "test": "node --test test/"
+  },
+  "engines": { "node": ">=22.18" }
+}

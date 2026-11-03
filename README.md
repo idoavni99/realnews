@@ -5,9 +5,10 @@ political map. Private project, zero-billing architecture.
 
 ## How it works
 
-1. `pipeline.py` (stdlib-only Python) fetches the RSS feeds in `sources.yaml`,
-   extracts article full text from the public article pages (never behind a
-   paywall), clusters articles into stories, and writes `site/data.json`.
+1. `src/pipeline.ts` (dependency-free TypeScript, runs directly on Node 22.18+)
+   fetches the RSS feeds in `sources.yaml`, extracts article full text from the
+   public article pages (never behind a paywall), clusters articles into
+   stories, and writes `site/data.json`.
 2. `.github/workflows/daily.yml` runs it every morning on GitHub Actions and
    commits the refreshed `data.json`.
 3. `site/index.html` is a static RTL page that renders the feed: headline,
@@ -37,6 +38,7 @@ political map. Private project, zero-billing architecture.
 ## Local run
 
 ```sh
-python3 pipeline.py   # writes site/data.json
+node src/pipeline.ts   # writes site/data.json
+node --test test/pipeline.test.ts   # unit tests
 cd site && python3 -m http.server 8000
 ```
