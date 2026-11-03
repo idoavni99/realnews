@@ -3,6 +3,15 @@ on:
   schedule:
     - cron: '20 3 * * *'   # ~05:20-06:20 Israel time (UTC+2/+3); GitHub runs scheduled jobs best-effort
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish reviewed data to main
+        type: boolean
+        default: false
+      synthesis:
+        description: Enable bounded free synthesis and verification
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -22,13 +31,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache
-          key: synthesis-v3-${{ github.run_id }}
-          restore-keys: synthesis-v3-
+          key: synthesis-v6-${{ github.run_id }}
+          restore-keys: synthesis-v6-
       - name: Run pipeline
         env:
+          REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node src/pipeline.ts
+      - name: Preserve staged output
+        uses: actions/upload-artifact@v4
+        with:
+          name: staged-digest
+          path: site/data.json
+          retention-days: 3
       - name: Commit updated data
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
         run: |
           git config user.name "realnews-bot"
           git config user.email "realnews-bot@users.noreply.github.com"
