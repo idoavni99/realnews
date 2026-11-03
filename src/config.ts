@@ -6,6 +6,7 @@ export interface Source {
   name: string;
   side: 'right' | 'center' | 'left' | 'unknown';
   rss: string;
+  extraction?: 'rss_only';
 }
 
 export interface Config {

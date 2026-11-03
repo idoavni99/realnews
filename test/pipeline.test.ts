@@ -83,3 +83,9 @@ test('RSS publication dates unwrap CDATA for the real time window', () => {
  const xml = FEED.replace('Tue, 03 Nov 2026 10:00:00 +0200', '<![CDATA[Tue, 03 Nov 2026 10:00:00 +0200]]>');
  assert.ok(Number.isFinite(Date.parse(parseFeed(xml, SRC)[0].published)));
 });
+
+
+test('Haaretz remains RSS-only to respect premium access', () => {
+ const cfg = loadConfig(new URL('..', import.meta.url).pathname);
+ assert.equal(cfg.sources.find(s => s.id === 'haaretz')?.extraction, 'rss_only');
+});

@@ -25,5 +25,18 @@ sources:
     name: Globes
     side: center
     rss: https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2
+  - id: hamakom
+    name: המקום הכי חם בגיהנום
+    side: left
+    rss: https://www.ha-makom.co.il/feed/
+  - id: haaretz
+    name: הארץ
+    side: left
+    rss: https://www.haaretz.co.il/srv/rss---feedly
+    extraction: rss_only
+  - id: srugim
+    name: סרוגים
+    side: right
+    rss: https://www.srugim.co.il/feed
 window_hours: 24
 max_articles_per_source: 15

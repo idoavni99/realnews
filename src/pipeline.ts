@@ -64,7 +64,8 @@ async function main() {
     }
   }
   for (const it of items) {
-    const { text, status } = await extractFulltext(it.url, it.title);
+    const rssOnly = cfg.sources.find(s => s.id === it.source)?.extraction === 'rss_only';
+    const { text, status } = rssOnly ? { text: '', status: 'lead_only' as const } : await extractFulltext(it.url, it.title);
     it.fulltext = text;
     it.extraction = status;
     await sleep(400);
