@@ -173,3 +173,26 @@ test('access caveats are deterministic metadata, not generated prose',()=>{
  const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},caveats:['הדיווח הוא בגדר מזלג']};
  assert.throws(()=>validateSynthesis(value,[a]),/Unexpected synthesis field/);
 });
+
+import { synthesizeStory } from '../src/synthesis.ts';
+import { verifyCandidates } from '../src/verification.ts';
+test('final sides-only model and verifier contract accepts evidence and fails closed',async()=>{
+ const original=globalThis.fetch;
+ const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
+ const value={sides:{left:{summary:[{text:'ראש הממשלה נפגש עם השר',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}}};
+ const reply=(v:unknown)=>new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify(v)}]}}]}));
+ try {
+  globalThis.fetch=async(_url,init)=>{
+   const body=JSON.parse(String(init?.body));
+   assert.deepEqual(body.generationConfig.responseSchema.required,['sides']);
+   return reply(value);
+  };
+  assert.deepEqual(await synthesizeStory(items,'test-not-a-key'),value);
+  globalThis.fetch=async()=>reply({verdicts:[{id:'summary',supported:false,reasons:['Unsupported attribution']}]});
+  assert.equal((await verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'))[0].supported,false);
+  globalThis.fetch=async()=>reply({verdicts:[]});
+  await assert.rejects(()=>verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'),/Incomplete/);
+  globalThis.fetch=async()=>new Response('{}',{status:429});
+  await assert.rejects(()=>verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'),/HTTP 429/);
+ }finally{globalThis.fetch=original;}
+});

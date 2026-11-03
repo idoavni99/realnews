@@ -56,3 +56,11 @@ summaries matched the leads, but the model generated a nonsensical access caveat
 fixture. Access caveats now come solely from metadata, outside generation; output
 schema rejects model caveats. Verifier prompt now also asks for readable language,
 but that prompt change is untested. Feature remains off and unshipped.
+
+Final sides-only schema (no generated caveats), refreshed verifier prompt: one
+real two-source generation plus one verification passed. Manual source comparison
+matched both leads. This does not cure the demonstrated verifier miss. Local UI
+renders cited side summaries, deterministic access caveat, absent side and rejected/
+unavailable states. Actual 390px accepted and 320px unavailable previews inspected;
+no clipping or horizontal overflow seen. Evidence screenshots are local previews,
+not production. Twenty-two tests pass. No production publication or secret install.

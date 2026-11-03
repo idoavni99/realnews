@@ -92,7 +92,7 @@ async function main() {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
     const fingerprint=createHash('sha256').update('v6-sides-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
-    if(cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
+    if(process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
     if(!synthesis && process.env.GEMINI_API_KEY && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
       synthesis_status='unavailable';
       if(!unavailable && calls+2<=maxCalls) {
@@ -104,8 +104,8 @@ async function main() {
           if(!verdicts[0]?.supported) throw new Error('Verification rejected summary');
           synthesis=draft; synthesis_status='ready';
         }
-        catch(e) { console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
-        await sleep(5000);
+        catch(e) { synthesis_status=/Verification rejected|Invalid|Unsupported|Unexpected/.test((e as Error).message)?'rejected':'unavailable'; console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
+        await sleep(10000); // At most 12 calls/minute including verification, below verified 15 RPM.
       }
     }
     if(synthesis) nextCache[fingerprint]=synthesis;

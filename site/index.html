@@ -41,6 +41,11 @@ h3.sec { font-size: 15px; margin: 22px 0 10px; }
 .src .title { color: var(--ink2); font-size: 14px; margin-top: 4px; }
 .src .go { color: var(--ink2); font-size: 12px; margin-top: 6px; }
 .side-tag { font-size: 11px; color: var(--ink2); border: 1px solid var(--hairline); border-radius: 10px; padding: 1px 8px; margin-inline-start: 8px; }
+.side-summary { background:var(--card); border-radius:12px; padding:16px; margin-top:10px; }
+.side-summary h3 { font-size:16px; margin-bottom:8px; }
+.side-summary p { font-size:15px; line-height:1.7; margin-top:8px; }
+.evidence { display:block; font-size:12px; color:var(--ink2); margin-top:5px; }
+.note { font-size:13px; color:var(--ink2); margin-top:12px; }
 footer.health { margin-top: 28px; color: var(--ink2); font-size: 12px; }
 .stale { color: #b04a4a; font-weight: 600; }
 footer.health .ok { color: #4a7d5d; } footer.health .bad { color: #b04a4a; }
@@ -94,6 +99,17 @@ function renderFeed() {
     ${staleH > 36 ? '<br><span class="stale">הנתונים לא התעדכנו לאחרונה - ייתכן שהריצה היומית מושהית.</span>' : ''}</footer>`;
 }
 
+function sideSummariesHtml(s) {
+  const ready = s.synthesis_status === 'ready' && s.synthesis;
+  const intro = ready ? 'סיכומים אוטומטיים שנבדקו מול הטקסט שנאסף. גם בדיקה אוטומטית עלולה לטעות.' : 'הסיכום לפי צד אינו זמין כרגע. לא מוצג סיכום שלא עבר את הבדיקה.';
+  return `<h3 class="sec">מה מדווחים לפי צד</h3><p class="note">${intro}</p>` + SIDE_ORDER.map(side => {
+    const found=s.articles.some(a=>a.side===side);
+    const rows=ready ? s.synthesis.sides[side]?.summary || [] : [];
+    const absent=DATA.monitored_sides.includes(side) ? 'לא נמצאו כתבות בנושא במקורות שבמעקב.' : 'הצד הזה אינו במעקב כרגע.';
+    return `<section class="side-summary"><h3>${SIDE_HE[side]}</h3>${rows.length ? rows.map(row=>`<p>${esc(row.text)}<span class="evidence">מקורות: ${row.article_ids.map(id=>s.articles[id]).filter(Boolean).map(a=>esc(a.source)).join(' · ')}</span></p>`).join('') : `<p>${!found ? absent : 'יש כתבות, אך אין סיכום מאומת זמין.'}</p>`}</section>`;
+  }).join('') + (s.caveats||[]).map(c=>`<p class="note">${esc(c)}</p>`).join('');
+}
+
 function renderDetail(i) {
   const s = DATA.stories[i];
   if (!s) return closeDetail();
@@ -101,12 +117,12 @@ function renderDetail(i) {
   s.articles.forEach(a => (bySide[a.side] = bySide[a.side] || []).push(a));
   document.getElementById('detail').innerHTML = `
     <h2>${esc(s.headline)}</h2>
-    <div class="sum">${esc(s.summary)}</div>
     ${coverageHtml(s)}
-    <h3 class="sec">הכתבות</h3>
+    ${sideSummariesHtml(s)}
+    <h3 class="sec">מקורות לעיון (לא חובה)</h3>
     ${Object.entries(bySide).map(([side, arts]) => arts.map(a => `
       <a class="src" href="${a.url}" target="_blank" rel="noopener">
-        <span class="name">${esc(a.source)}</span><span class="side-tag">${SIDE_HE[side] || SIDE_HE.unknown}${a.extraction === 'lead_only' ? ' · תקציר בלבד' : ''}</span>
+        <span class="name">${esc(a.source)}</span><span class="side-tag">${SIDE_HE[side] || SIDE_HE.unknown}${a.extraction === 'lead_only' ? ' · פתיח בלבד' : a.extraction === 'partial' ? ' · טקסט חלקי' : ''}</span>
         <div class="title">${esc(a.title)}</div>
         <div class="go">לכתבה המלאה באתר המקור ↗</div>
       </a>`).join('')).join('')}`;
