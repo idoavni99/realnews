@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "run": "node src/pipeline.ts",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.ts"
   },
   "engines": { "node": ">=22.18" }
 }

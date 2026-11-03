@@ -19,6 +19,7 @@ export function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;|&rsquo;|&lsquo;/g, "'").replace(/&nbsp;/g, ' ')
     .replace(/&ldquo;|&rdquo;/g, '"').replace(/&hellip;/g, '...').replace(/&[nm]dash;/g, '-')
     .replace(/&times;/g, 'x').replace(/&deg;/g, ' deg ')
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 }
 
@@ -37,7 +38,7 @@ export function parseFeed(xml: string, source: Source): FeedItem[] {
     if (title && link) {
       items.push({
         source: source.id, sourceName: source.name, side: source.side,
-        title, url: link, summary, published: pick(x, 'pubDate'),
+        title, url: link, summary, published: decodeEntities(pick(x, 'pubDate')),
       });
     }
   }

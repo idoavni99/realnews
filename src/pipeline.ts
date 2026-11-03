@@ -49,15 +49,17 @@ function storySummary(items: FeedItem[]): string {
 async function main() {
   const cfg = loadConfig(ROOT);
   const items: FeedItem[] = [];
-  const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string }> = {};
+  const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
   for (const s of cfg.sources) {
     try {
-      const got = (await parseFeed(await httpGet(s.rss), s)).slice(0, cfg.maxArticlesPerSource);
+      const got = parseFeed(await httpGet(s.rss), s)
+        .filter(i => { const age = Date.now() - Date.parse(i.published); return Number.isFinite(age) && age >= -300000 && age <= cfg.windowHours * 3600000; })
+        .slice(0, cfg.maxArticlesPerSource);
       items.push(...got);
-      sourceHealth[s.id] = { ok: got.length > 0, items: got.length, side: s.side, name: s.name };
+      sourceHealth[s.id] = { ok: got.length > 0, items: got.length, side: s.side, name: s.name, status: got.length ? 'ok' : 'no_recent_items' };
       console.error(`${s.id}: ${got.length} items`);
     } catch (e) {
-      sourceHealth[s.id] = { ok: false, items: 0, side: s.side, name: s.name };
+      sourceHealth[s.id] = { ok: false, items: 0, side: s.side, name: s.name, status: 'fetch_failed' };
       console.error(`${s.id}: FAILED ${(e as Error).message}`);
     }
   }

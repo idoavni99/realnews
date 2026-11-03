@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFeed, decodeEntities } from '../src/rss.ts';
 import { clusterItems } from '../src/cluster.ts';
-import { normTokens } from '../src/extract.ts';
+import { normTokens, extractArticlePage } from '../src/extract.ts';
 import { loadConfig, normalizeSide, type Source } from '../src/config.ts';
 
 const SRC: Source = { id: 't', name: 'Test', side: 'unknown', rss: 'https://example.com/rss' };
 
 const FEED = `<?xml version="1.0"?><rss><channel>
-<item><title><![CDATA[ראש הממשלה נפגש עם השר]]></title><link>https://example.com/a1</link><description>תקציר קצר</description><pubDate>Mon, 03 Nov 2026 10:00:00 +0200</pubDate></item>
+<item><title><![CDATA[ראש הממשלה נפגש עם השר]]></title><link>https://example.com/a1</link><description>תקציר קצר</description><pubDate>Tue, 03 Nov 2026 10:00:00 +0200</pubDate></item>
 <item><title>Second &amp; title</title><link>https://example.com/a2</link><description><p>desc with tags</p></description></item>
 </channel></rss>`;
 
@@ -56,4 +56,30 @@ test('real sources.yaml parses with valid neutral sides', () => {
 test('normalizeSide coerces typos to unknown', () => {
   assert.equal(normalizeSide('rigth'), 'unknown');
   assert.equal(normalizeSide('left'), 'left');
+});
+
+
+test('article extraction rejects page boilerplate even with title overlap', () => {
+  const title = 'הממשלה אישרה תקציב חדש';
+  const page = `<title>${title}</title><nav>${title} ${'חדשות ספורט אוכל '.repeat(100)}</nav>`;
+  assert.deepEqual(extractArticlePage(page, title), { text: '', status: 'lead_only' });
+});
+
+test('article extraction parses escaped quotes as complete JSON, without navigation', () => {
+  const body = 'הממשלה אישרה תקציב חדש. השר אמר: "נמשיך לפעול", אחרי הדיון. '.repeat(15);
+  const page = `<nav>navigation</nav><script type="application/ld+json">${JSON.stringify({articleBody: body})}</script>`;
+  const result = extractArticlePage(page, 'הממשלה אישרה תקציב חדש');
+  assert.equal(result.status, 'full');
+  assert.equal(result.text, body.trim());
+  assert.ok(!result.text.includes('navigation'));
+});
+
+test('decodeEntities handles hexadecimal apostrophes', () => {
+  assert.equal(decodeEntities('ג&#x27;קסון'), "ג'קסון");
+});
+
+
+test('RSS publication dates unwrap CDATA for the real time window', () => {
+ const xml = FEED.replace('Tue, 03 Nov 2026 10:00:00 +0200', '<![CDATA[Tue, 03 Nov 2026 10:00:00 +0200]]>');
+ assert.ok(Number.isFinite(Date.parse(parseFeed(xml, SRC)[0].published)));
 });

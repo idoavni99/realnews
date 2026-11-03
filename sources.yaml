@@ -24,6 +24,6 @@ sources:
   - id: globes
     name: Globes
     side: unknown
-    rss: https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1725
+    rss: https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2
 window_hours: 24
 max_articles_per_source: 15

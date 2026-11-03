@@ -89,7 +89,7 @@ function renderFeed() {
       ${coverageHtml(s)}
     </a>`).join('') +
     `<footer class="health">מקורות: ${Object.entries(DATA.source_health).map(([id, h]) =>
-      `<span class="${h.ok ? 'ok' : 'bad'}">${esc(h.name)}${h.ok ? '' : ' (תקלה)'}</span>`).join(' · ')}
+      `<span class="${h.ok ? 'ok' : 'bad'}">${esc(h.name)}${h.ok ? '' : h.status === 'no_recent_items' ? ' (אין כתבות עדכניות בפיד)' : ' (תקלה)'}</span>`).join(' · ')}
     <br>עודכן: ${new Date(DATA.generated_at).toLocaleString('he-IL')} · חלון ${DATA.window_hours} שעות
     ${staleH > 36 ? '<br><span class="stale">הנתונים לא התעדכנו לאחרונה - ייתכן שהריצה היומית מושהית.</span>' : ''}</footer>`;
 }
