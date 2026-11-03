@@ -90,7 +90,7 @@ async function main() {
   for (const c of clusters) {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v3-gemini-3.8-flash'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    const fingerprint=createHash('sha256').update('v4-sides-only-gemini-3.8-flash'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     if(cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
     if(!synthesis && process.env.GEMINI_API_KEY && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
       synthesis_status='unavailable';
@@ -108,7 +108,7 @@ async function main() {
     }
     stories.push({
       headline: c.items.reduce((a, b) => (b.title.length > a.title.length ? b : a)).title,
-      summary: synthesis ? synthesis.event.map(x=>x.text).join(' ') : storySummary(c.items),
+      summary: storySummary(c.items), // Existing source text, never a generated event summary.
       synthesis, synthesis_status,
       counts,
       total: c.items.length,
