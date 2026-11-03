@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>realnews - הסיפור משני הצדדים</title>
+<style>
+:root {
+  --bg: #f4efec; --card: #ffffff; --ink: #251f21; --ink2: #585254; --hairline: #eae9ea;
+  --right: #251f21; --center: #6e6769; --left: #b3acae;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.5; }
+.wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 48px; }
+header.top { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: 18px 16px 12px; border-bottom: 1px solid var(--hairline); }
+header.top h1 { font-size: 20px; font-weight: 700; }
+header.top .meta { color: var(--ink2); font-size: 12px; margin-top: 2px; }
+.banner { background: #fff8e6; border: 1px solid #efe0b3; border-radius: 10px; padding: 10px 14px; margin: 14px 0 0; font-size: 13px; color: var(--ink2); }
+.card { display: block; background: var(--card); border-radius: 16px; padding: 18px; margin-top: 14px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(37,31,33,.05); }
+.card h2 { font-size: 17px; font-weight: 700; line-height: 1.4; }
+.card .sum { color: var(--ink2); font-size: 14px; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cov { margin-top: 14px; }
+.cov-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--hairline); }
+.seg-right { background: var(--right); } .seg-center { background: var(--center); } .seg-left { background: var(--left); }
+.cov-legend { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--ink2); flex-wrap: wrap; }
+.cov-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cov-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.nobar { font-size: 13px; color: var(--ink2); background: var(--bg); border-radius: 8px; padding: 8px 12px; }
+.overlay { position: fixed; inset: 0; background: var(--bg); z-index: 20; overflow-y: auto; display: none; }
+.overlay.open { display: block; }
+.ov-head { position: sticky; top: 0; background: var(--bg); padding: 14px 16px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; gap: 12px; }
+.ov-head button { border: 1px solid var(--hairline); background: var(--card); border-radius: 20px; padding: 8px 16px; font-size: 14px; min-height: 44px; cursor: pointer; color: var(--ink); }
+.ov-body { max-width: 640px; margin: 0 auto; padding: 18px 16px 48px; }
+.ov-body h2 { font-size: 20px; line-height: 1.4; }
+.ov-body .sum { color: var(--ink2); font-size: 15px; margin-top: 10px; }
+h3.sec { font-size: 15px; margin: 22px 0 10px; }
+.src { background: var(--card); border-radius: 12px; padding: 14px 16px; margin-top: 8px; display: block; text-decoration: none; color: inherit; }
+.src .name { font-weight: 700; font-size: 14px; }
+.src .title { color: var(--ink2); font-size: 14px; margin-top: 4px; }
+.src .go { color: var(--ink2); font-size: 12px; margin-top: 6px; }
+.side-tag { font-size: 11px; color: var(--ink2); border: 1px solid var(--hairline); border-radius: 10px; padding: 1px 8px; margin-inline-start: 8px; }
+footer.health { margin-top: 28px; color: var(--ink2); font-size: 12px; }
+footer.health .ok { color: #4a7d5d; } footer.health .bad { color: #b04a4a; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap" style="padding-bottom:0">
+  <h1>הסיפור משני הצדדים</h1>
+  <div class="meta" id="meta">טוען…</div>
+  <div class="banner" id="banner" hidden></div>
+</div></header>
+<main class="wrap" id="feed"></main>
+<div class="overlay" id="overlay">
+  <div class="ov-head"><button id="back" type="button">→ חזרה</button></div>
+  <div class="ov-body" id="detail"></div>
+</div>
+<script>
+const SIDE_HE = { right: 'ימין', center: 'מרכז', left: 'שמאל', unknown: 'ללא תיוג' };
+const SIDE_ORDER = ['right', 'center', 'left'];
+let DATA = null;
+
+function articlesLabel(n) { return n === 1 ? 'כתבה אחת' : n + ' כתבות'; }
+
+function coverageHtml(story) {
+  const sides = SIDE_ORDER.filter(s => DATA.monitored_sides.includes(s));
+  const counted = sides.reduce((a, s) => a + (story.counts[s] || 0), 0);
+  if (sides.length < 2 || counted === 0) {
+    return `<div class="cov"><div class="nobar">${articlesLabel(story.total)} · תיוג צדדים טרם הושלם</div></div>`;
+  }
+  const segs = sides.filter(s => story.counts[s]).map(s =>
+    `<div class="seg-${s}" style="width:${Math.round(story.counts[s] / counted * 100)}%"></div>`).join('');
+  const legend = sides.map(s => {
+    const n = story.counts[s] || 0;
+    const txt = n === 0 ? `${SIDE_HE[s]} · לא נמצא במעקב` : `${SIDE_HE[s]} ${Math.round(n / counted * 100)}% · ${articlesLabel(n)}`;
+    return `<span><i class="seg-${s}"></i>${txt}</span>`;
+  }).join('');
+  return `<div class="cov"><div class="cov-bar">${segs}</div><div class="cov-legend">${legend}</div></div>`;
+}
+
+function renderFeed() {
+  document.getElementById('feed').innerHTML = DATA.stories.map((s, i) => `
+    <a class="card" href="#/story/${i}">
+      <h2>${esc(s.headline)}</h2>
+      <div class="sum">${esc(s.summary)}</div>
+      ${coverageHtml(s)}
+    </a>`).join('') +
+    `<footer class="health">מקורות: ${Object.entries(DATA.source_health).map(([id, h]) =>
+      `<span class="${h.ok ? 'ok' : 'bad'}">${esc(h.name)}${h.ok ? '' : ' (תקלה)'}</span>`).join(' · ')}
+    <br>עודכן: ${new Date(DATA.generated_at).toLocaleString('he-IL')} · חלון ${DATA.window_hours} שעות</footer>`;
+}
+
+function renderDetail(i) {
+  const s = DATA.stories[i];
+  if (!s) return closeDetail();
+  const bySide = {};
+  s.articles.forEach(a => (bySide[a.side] = bySide[a.side] || []).push(a));
+  document.getElementById('detail').innerHTML = `
+    <h2>${esc(s.headline)}</h2>
+    <div class="sum">${esc(s.summary)}</div>
+    ${coverageHtml(s)}
+    <h3 class="sec">הכתבות</h3>
+    ${Object.entries(bySide).map(([side, arts]) => arts.map(a => `
+      <a class="src" href="${a.url}" target="_blank" rel="noopener">
+        <span class="name">${esc(a.source)}</span><span class="side-tag">${SIDE_HE[side] || SIDE_HE.unknown}${a.extraction === 'lead_only' ? ' · תקציר בלבד' : ''}</span>
+        <div class="title">${esc(a.title)}</div>
+        <div class="go">לכתבה המלאה באתר המקור ↗</div>
+      </a>`).join('')).join('')}`;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('overlay').scrollTop = 0;
+}
+
+function closeDetail() { document.getElementById('overlay').classList.remove('open'); location.hash = '#/'; }
+function esc(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
+
+function route() {
+  const m = location.hash.match(/^#\/story\/(\d+)/);
+  if (m) renderDetail(+m[1]); else document.getElementById('overlay').classList.remove('open');
+}
+
+fetch('data.json').then(r => r.json()).then(d => {
+  DATA = d;
+  document.getElementById('meta').textContent = 'עודכן ' + new Date(d.generated_at).toLocaleString('he-IL');
+  const unmonitored = SIDE_ORDER.filter(s => !d.monitored_sides.includes(s));
+  if (unmonitored.length) {
+    const b = document.getElementById('banner');
+    b.hidden = false;
+    b.textContent = 'שים לב: ' + unmonitored.map(s => SIDE_HE[s]).join(', ') +
+      ' אינם במעקב כרגע (מקורות לא מתויגים או תקלה). הפסים מחושבים רק על צדדים במעקב.';
+  }
+  renderFeed(); route();
+}).catch(() => { document.getElementById('meta').textContent = 'שגיאה בטעינת הנתונים'; });
+
+window.addEventListener('hashchange', route);
+document.getElementById('back').addEventListener('click', closeDetail);
+</script>
+</body>
+</html>
