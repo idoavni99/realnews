@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, CONFIRMED_SIDES } from './config.ts';
 import { httpGet, sleep } from './http.ts';
-import { parseFeed, type FeedItem } from './rss.ts';
+import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
 import { clusterItems } from './cluster.ts';
 
@@ -52,7 +52,8 @@ async function main() {
   const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
   for (const s of cfg.sources) {
     try {
-      const got = parseFeed(await httpGet(s.rss), s)
+      const payload = await httpGet(s.rss);
+      const got = (s.format === 'i24_json' ? parseI24News(payload, s) : parseFeed(payload, s))
         .filter(i => { const age = Date.now() - Date.parse(i.published); return Number.isFinite(age) && age >= -300000 && age <= cfg.windowHours * 3600000; })
         .slice(0, cfg.maxArticlesPerSource);
       items.push(...got);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFeed, decodeEntities } from '../src/rss.ts';
+import { parseFeed, decodeEntities, parseI24News } from '../src/rss.ts';
 import { clusterItems } from '../src/cluster.ts';
 import { normTokens, extractArticlePage } from '../src/extract.ts';
 import { loadConfig, normalizeSide, type Source } from '../src/config.ts';
@@ -88,4 +88,15 @@ test('RSS publication dates unwrap CDATA for the real time window', () => {
 test('Haaretz remains RSS-only to respect premium access', () => {
  const cfg = loadConfig(new URL('..', import.meta.url).pathname);
  assert.equal(cfg.sources.find(s => s.id === 'haaretz')?.extraction, 'rss_only');
+});
+
+
+test('i24 uses article metadata, deduplicates links and excludes unlinked flashes', () => {
+ const article = {title:'Article headline', frontendUrl:'https://www.i24news.tv/he/news/test', publishedAt:'2026-11-03T12:00:00Z', excerpt:'Article lead'};
+ const rows = [{title:'Different flash',content:article},{content:article},{title:'Unlinked',content:null}];
+ const a = parseI24News(JSON.stringify(rows), SRC);
+ assert.equal(a.length, 1);
+ assert.equal(a[0].title, 'Article headline');
+ assert.equal(a[0].summary, 'Article lead');
+ assert.equal(a[0].published, article.publishedAt);
 });

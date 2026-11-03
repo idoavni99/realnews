@@ -38,5 +38,11 @@ sources:
     name: סרוגים
     side: right
     rss: https://www.srugim.co.il/feed
+  - id: i24
+    name: i24NEWS
+    side: right
+    rss: https://api.i24news.tv/v2/he/news
+    format: i24_json
+    extraction: rss_only
 window_hours: 24
 max_articles_per_source: 15

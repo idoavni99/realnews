@@ -7,6 +7,7 @@ export interface Source {
   side: 'right' | 'center' | 'left' | 'unknown';
   rss: string;
   extraction?: 'rss_only';
+  format?: 'i24_json';
 }
 
 export interface Config {

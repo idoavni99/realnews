@@ -44,3 +44,22 @@ export function parseFeed(xml: string, source: Source): FeedItem[] {
   }
   return items;
 }
+
+
+/** i24's public updates contain repeated links; use each article's own metadata once. */
+export function parseI24News(json: string, source: Source): FeedItem[] {
+  const rows = JSON.parse(json);
+  if (!Array.isArray(rows)) throw new Error('Invalid i24 updates payload');
+  const seen = new Set<string>();
+  const items: FeedItem[] = [];
+  for (const row of rows) {
+    const c = row?.content;
+    if (!c?.frontendUrl || !c?.title || !c?.publishedAt) continue;
+    const url = new URL(c.frontendUrl);
+    if (url.protocol !== 'https:' || url.hostname !== 'www.i24news.tv' || seen.has(url.href)) continue;
+    seen.add(url.href);
+    items.push({ source: source.id, sourceName: source.name, side: source.side,
+      title: c.title, url: url.href, summary: c.excerpt || '', published: c.publishedAt });
+  }
+  return items;
+}
