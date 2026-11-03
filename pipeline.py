@@ -73,16 +73,24 @@ STOP = set(('של את על עם אל מה כי לא הוא היא זה זאת �
 
 def norm_tokens(title):
     t = re.sub(r'[^\w\s]', ' ', title, flags=re.UNICODE)
-    return {w.strip('״"׳\'') for w in t.split() if len(w) > 1 and w.lower() not in STOP}
+    out = set()
+    for w in t.split():
+        w = w.strip('״"׳\'')
+        if len(w) > 3 and w[0] in 'והבלמש':  # strip common Hebrew prefixes on long tokens
+            w = w[1:]
+        if len(w) > 1 and w.lower() not in STOP:
+            out.add(w)
+    return out
 
-def cluster(items, threshold=0.25):
+def cluster(items, threshold=0.45):
     clusters = []
     for it in items:
-        toks = norm_tokens(it['title'])
+        toks = norm_tokens(it['title'] + ' ' + it['summary'][:120])
         best, best_sim = None, 0.0
         for c in clusters:
-            union = len(toks | c['tokens']) or 1
-            sim = len(toks & c['tokens']) / union
+            # containment: how much of the smaller token set is shared
+            denom = min(len(toks), len(c['tokens'])) or 1
+            sim = len(toks & c['tokens']) / denom
             if sim > best_sim:
                 best, best_sim = c, sim
         if best is not None and best_sim >= threshold:
@@ -104,7 +112,11 @@ def extract_fulltext(url, title):
     body = ''
     m = re.search(r'"articleBody"\s*:\s*"(.*?)"\s*[,}]', page, re.S)
     if m:
-        body = m.group(1).encode().decode('unicode_escape', errors='ignore')
+        raw = m.group(1)
+        try:
+            body = json.loads('"' + raw + '"')
+        except Exception:
+            body = raw
         body = re.sub(r'\s+', ' ', body).strip()
     if not body:
         txt = re.sub(r'<script.*?</script>|<style.*?</style>', '', page, flags=re.S)
