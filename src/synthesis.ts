@@ -14,6 +14,20 @@ export function synthesisInput(items: FeedItem[]) {
     access: a.extraction || 'lead_only' }));
 }
 
+/** Narrow quantity normalization, not semantic verification. Keeps whole digit tokens. */
+export function numberClaims(text:string):Set<string>{
+ const words:Record<string,string>={'אחת':'1','אחד':'1','שתיים':'2','שניים':'2','שתי':'2','שני':'2','שלוש':'3','שלושה':'3','ארבע':'4','ארבעה':'4','חמש':'5','חמישה':'5','שש':'6','שישה':'6','שבע':'7','שבעה':'7','שמונה':'8','תשע':'9','תשעה':'9','עשר':'10','עשרה':'10','שעתיים':'duration:2hours'};
+ const result=new Set(text.match(/\d+(?:[.,]\d+)*/g)||[]);
+ for(const token of text.match(/[א-ת]+/g)||[]){
+  // At most two ordinary Hebrew prefixes, only if the remainder is a known number.
+  for(let k=0;k<=Math.min(2,token.length-1);k++){
+   if(k && !/^[ובכלמשה]+$/.test(token.slice(0,k)))continue;
+   const n=words[token.slice(k)];if(n){result.add(n);break;}
+  }
+ }
+ return result;
+}
+
 /** Reject invented citations, cross-side attribution, absent-side prose and oversized output. */
 export function validateSynthesis(value: unknown, items: FeedItem[]): StorySynthesis {
   const v = value as StorySynthesis;
@@ -26,11 +40,9 @@ export function validateSynthesis(value: unknown, items: FeedItem[]): StorySynth
         throw new Error('Invalid synthesis citation');
       }
       const evidence=row.article_ids.map(id => items[id].title+' '+(items[id].fulltext||items[id].summary)).join(' ');
-      for (const word of ['אחת','שתיים','שלוש','ארבע','חמש','שש','שבע','שמונה','תשע','עשר','שעתיים']) {
-        if (row.text.includes(word) && !evidence.includes(word)) throw new Error('Unsupported number word in synthesis');
-      }
-      for (const n of row.text.match(/\d+(?:[.,]\d+)*/g)||[]) {
-        if (!evidence.includes(n)) throw new Error('Unsupported number in synthesis');
+      const supportedNumbers=numberClaims(evidence);
+      for(const n of numberClaims(row.text)) {
+        if(!supportedNumbers.has(n)) throw new Error('Unsupported number in synthesis');
       }
     }
   };

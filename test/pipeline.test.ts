@@ -132,7 +132,7 @@ import { readFileSync } from 'node:fs';
 test('real free-model duration hallucination is rejected, not published', () => {
  const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
  const current={sides:fixture.output.sides,caveats:fixture.output.caveats};
- assert.throws(()=>validateSynthesis(current,fixture.input),/Unsupported number word/);
+ assert.throws(()=>validateSynthesis(current,fixture.input),/Unsupported number/);
  // This is a narrow regression check, not proof of semantic accuracy.
 
 });
@@ -148,4 +148,19 @@ test('verifier requires one explicit verdict per candidate and reasons for rejec
  assert.throws(()=>validateVerdicts({verdicts:[{id:'a',supported:false,reasons:[]}]},['a']),/Invalid/);
  assert.throws(()=>validateVerdicts({verdicts:[{id:'a',supported:true,reasons:[]},{id:'a',supported:true,reasons:[]}]},['a','b']),/Incomplete/);
  assert.equal(validateVerdicts({verdicts:[{id:'a',supported:false,reasons:['Reversed negation']}]},['a'])[0].supported,false);
+});
+
+import { numberClaims } from '../src/synthesis.ts';
+test('quantity normalization accepts Hebrew digit paraphrase but not changed quantities',()=>{
+ assert.deepEqual(numberClaims('כתשע שנים בשתי קדנציות'),new Set(['9','2']));
+ assert.deepEqual(numberClaims('כ-9 שנים בשתי קדנציות'),new Set(['9','2']));
+ assert.ok(!numberClaims('19 שנים').has('9'));
+ assert.ok(numberClaims('לאחר כשעתיים').has('duration:2hours'));
+ const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
+ const value={sides:{left:{summary:[{text:'כ-9 שנים בשתי קדנציות',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}},caveats:[]};
+ assert.doesNotThrow(()=>validateSynthesis(value,fixture.input));
+ value.sides.left.summary[0].text='כ-5 שנים';
+ assert.throws(()=>validateSynthesis(value,fixture.input),/Unsupported number/);
+ value.sides.left.summary[0].text='לאחר כשעתיים';
+ assert.throws(()=>validateSynthesis(value,fixture.input),/Unsupported number/);
 });

@@ -38,3 +38,13 @@ output and a supported synthetic control, rejected a reversed denial and a
 fabricated source/death claim. The candidate IDs were descriptive, not blinded;
 this is a small, weak initial verifier evaluation, not a reliability guarantee.
 Verification module remains experimental and unwired to production. No deployment.
+
+Blind verifier check: one additional call with opaque random UUIDs, randomized
+order, and no labels/expected verdicts in model input. Three supported candidates
+and seven corruptions all matched manual expected verdicts. Corruptions covered
+five years, two hours, garbled duration, cross-source minister attribution,
+reversed denial, rumor promoted to fact, and invented deaths/source attribution.
+The valid digit/word paraphrase was accepted. This small set reuses two stories;
+it does not establish broad reliability or independence from generator errors.
+Numeric normalization now accepts תשע/9 without accepting 19 as 9, and rejects
+five years or two hours when unsupported. Twenty local tests pass. Not deployed.
