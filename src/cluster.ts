@@ -12,7 +12,15 @@ export interface Cluster {
  */
 export function clusterItems(items: FeedItem[], threshold = 0.45): Cluster[] {
   const clusters: Cluster[] = [];
+  const seenUrls = new Set<string>();
   for (const it of items) {
+    const url = new URL(it.url);
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) {
+      if (key.startsWith('utm_') || ['fbclid', 'gclid'].includes(key)) url.searchParams.delete(key);
+    }
+    if (seenUrls.has(url.href)) continue;
+    seenUrls.add(url.href);
     const toks = normTokens(it.title + ' ' + it.summary.slice(0, 120));
     let best: Cluster | null = null;
     let bestSim = 0;
@@ -23,7 +31,7 @@ export function clusterItems(items: FeedItem[], threshold = 0.45): Cluster[] {
     }
     if (best && bestSim >= threshold) {
       best.items.push(it);
-      for (const t of toks) best.tokens.add(t);
+      // Keep the first article as the anchor: union expansion can drift into a new event.
     } else {
       clusters.push({ tokens: new Set(toks), items: [it] });
     }

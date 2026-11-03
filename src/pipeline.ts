@@ -9,7 +9,7 @@
  * - A side with no healthy sources (or no confirmed label) is NOT part of the
  *   percentage at all - the UI shows it as "not monitored", never as 0%.
  */
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, CONFIRMED_SIDES } from './config.ts';
@@ -17,6 +17,8 @@ import { httpGet, sleep } from './http.ts';
 import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
 import { clusterItems } from './cluster.ts';
+import { createHash } from 'node:crypto';
+import { synthesizeStory, synthesisInput, validateSynthesis, type StorySynthesis } from './synthesis.ts';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -27,7 +29,7 @@ interface StoryArticle {
 
 interface Story {
   headline: string; summary: string; counts: Record<string, number>;
-  total: number; articles: StoryArticle[];
+  total: number; articles: StoryArticle[]; synthesis?: StorySynthesis; synthesis_status?: string;
 }
 
 /** Trim to ~max chars at a sentence boundary, never mid-word. */
@@ -77,14 +79,37 @@ async function main() {
       .map((h) => h.side),
   )].sort();
   const stories: Story[] = [];
-  for (const c of clusterItems(items)) {
+  const clusters=clusterItems(items).sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published)).slice(0,30);
+  const cacheDir=join(ROOT,'.cache'); mkdirSync(cacheDir,{recursive:true});
+  const cachePath=join(cacheDir,'synthesis.json');
+  let cache: Record<string,StorySynthesis>={};
+  try { if(existsSync(cachePath)) cache=JSON.parse(readFileSync(cachePath,'utf8')); } catch { console.error('Ignoring invalid synthesis cache'); }
+  const nextCache:Record<string,StorySynthesis>={};
+  let calls=0, unavailable=false;
+  const maxCalls=30; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
+  for (const c of clusters) {
+    let synthesis:StorySynthesis|undefined;
+    let synthesis_status='not_configured';
+    const fingerprint=createHash('sha256').update('v3-gemini-3.8-flash'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    if(cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
+    if(!synthesis && process.env.GEMINI_API_KEY && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
+      synthesis_status='unavailable';
+      if(!unavailable && calls<maxCalls) {
+        calls++;
+        try { synthesis=await synthesizeStory(c.items,process.env.GEMINI_API_KEY); synthesis_status='ready'; }
+        catch(e) { console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
+        await sleep(5000);
+      }
+    }
+    if(synthesis) nextCache[fingerprint]=synthesis;
     const counts: Record<string, number> = {};
     for (const i of c.items) {
       if (monitoredSides.includes(i.side)) counts[i.side] = (counts[i.side] ?? 0) + 1;
     }
     stories.push({
       headline: c.items.reduce((a, b) => (b.title.length > a.title.length ? b : a)).title,
-      summary: storySummary(c.items),
+      summary: synthesis ? synthesis.event.map(x=>x.text).join(' ') : storySummary(c.items),
+      synthesis, synthesis_status,
       counts,
       total: c.items.length,
       articles: c.items.map((i) => ({
@@ -101,6 +126,7 @@ async function main() {
     source_health: sourceHealth,
     stories: stories.slice(0, 30),
   };
+  writeFileSync(cachePath,JSON.stringify(nextCache));
   const dest = join(ROOT, 'site', 'data.json');
   writeFileSync(dest, JSON.stringify(out, null, 1));
   const nFull = items.filter((i) => i.extraction === 'full').length;

@@ -100,3 +100,46 @@ test('i24 uses article metadata, deduplicates links and excludes unlinked flashe
  assert.equal(a[0].summary, 'Article lead');
  assert.equal(a[0].published, article.publishedAt);
 });
+
+
+test('cluster URL dedup ignores tracking and fragments', () => {
+ const a = parseFeed(FEED, SRC)[0];
+ const b = {...a, url: a.url + '?utm_source=test#top'};
+ assert.equal(clusterItems([a,b])[0].items.length,1);
+});
+
+test('cluster anchor does not expand through a chain into another event', () => {
+ const a = {...parseFeed(FEED,SRC)[0],title:'אלפא בטא גמא דלתא',summary:''};
+ const b = {...a,url:'https://example.com/b',title:'אלפא בטא אפסילון זטא'};
+ const c = {...a,url:'https://example.com/c',title:'אפסילון זטא אתא תטא'};
+ const groups=clusterItems([a,b,c]);
+ assert.equal(groups.length,2);
+ assert.equal(groups[0].items.length,2);
+});
+
+import { validateSynthesis, synthesisInput } from '../src/synthesis.ts';
+test('synthesis rejects invented evidence and attribution to absent side', () => {
+ const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
+ const valid={event:[{text:'Reported fact',article_ids:[0]}],sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},differences:[],caveats:[]};
+ assert.doesNotThrow(()=>validateSynthesis(valid,items));
+ assert.throws(()=>validateSynthesis({...valid,event:[{text:'Invented',article_ids:[99]}]},items));
+ assert.throws(()=>validateSynthesis({...valid,sides:{...valid.sides,right:{summary:[{text:'Wrong side',article_ids:[0]}]}}},items));
+ assert.equal(synthesisInput(items)[0].access,'lead_only');
+});
+
+
+import { readFileSync } from 'node:fs';
+test('real free-model duration hallucination is rejected, not published', () => {
+ const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
+ assert.throws(()=>validateSynthesis(fixture.output,fixture.input),/Unsupported number word/);
+ // This is a narrow regression check, not proof of semantic accuracy.
+ const hours=structuredClone(fixture.output);
+ hours.sides.left.summary=[];
+ hours.event[0].text='הודיע על סיום תפקידו לאחר כשעתיים מצטברות בשתי קדנציות של כ-9 שנים.';
+ assert.throws(()=>validateSynthesis(hours,fixture.input),/Unsupported number word/);
+});
+test('a single-side story cannot manufacture a cross-side difference', () => {
+ const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
+ const value={event:[{text:'Reported fact',article_ids:[0]}],sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},differences:[{text:'Difference',article_ids:[0]}],caveats:[]};
+ assert.throws(()=>validateSynthesis(value,items),/multiple sides/);
+});
