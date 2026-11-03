@@ -16,6 +16,11 @@ export interface Config {
 
 export const CONFIRMED_SIDES = ['right', 'center', 'left'] as const;
 export type Side = typeof CONFIRMED_SIDES[number];
+const VALID_SIDES = new Set<string>([...CONFIRMED_SIDES, 'unknown']);
+/** Owner-typo guard: an unrecognized side is treated as unknown (never as a new side). */
+export function normalizeSide(s: string): Source['side'] {
+  return (VALID_SIDES.has(s) ? s : 'unknown') as Source['side'];
+}
 
 /** Minimal parser for our flat sources.yaml shape - no external deps. */
 export function loadConfig(root: string): Config {
@@ -35,6 +40,7 @@ export function loadConfig(root: string): Config {
       opts[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     }
   }
+  for (const src of sources) src.side = normalizeSide(src.side as string);
   return {
     sources,
     windowHours: parseInt(opts['window_hours'] ?? '24', 10),

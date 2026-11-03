@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseFeed, decodeEntities } from '../src/rss.ts';
 import { clusterItems } from '../src/cluster.ts';
 import { normTokens } from '../src/extract.ts';
-import type { Source } from '../src/config.ts';
+import { loadConfig, normalizeSide, type Source } from '../src/config.ts';
 
 const SRC: Source = { id: 't', name: 'Test', side: 'unknown', rss: 'https://example.com/rss' };
 
@@ -42,4 +42,18 @@ test('clusterItems keeps different stories apart', () => {
 
 test('decodeEntities handles numeric entities', () => {
   assert.equal(decodeEntities('a&#45;b'), 'a-b');
+});
+
+test('real sources.yaml parses with valid neutral sides', () => {
+  const cfg = loadConfig(new URL('..', import.meta.url).pathname);
+  assert.ok(cfg.sources.length >= 5);
+  for (const s of cfg.sources) {
+    assert.ok(['right', 'center', 'left', 'unknown'].includes(s.side));
+    assert.ok(s.rss.startsWith('https://'));
+  }
+});
+
+test('normalizeSide coerces typos to unknown', () => {
+  assert.equal(normalizeSide('rigth'), 'unknown');
+  assert.equal(normalizeSide('left'), 'left');
 });

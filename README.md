@@ -35,6 +35,13 @@ political map. Private project, zero-billing architecture.
 - Summaries: extractive by default (no API). An optional LLM summarizer can be
   added later behind an explicit owner decision; nothing calls a paid API today.
 
+## תיוג מקורות (רק הבעלים)
+
+ערוך את `sources.yaml` ישירות ב-GitHub (פתח את הקובץ > סמל העיפרון > Commit changes).
+לכל מקור שנה את `side` לאחד מ: `right` / `center` / `left` / `unknown`.
+כל ערך אחר מטופל כ-`unknown` אוטומטית. מקור `unknown` לא נכנס לחישוב סרגל הכיסוי.
+אין תיוג אוטומטי - התווית נכנסת רק אחרי שאתה כותב אותה.
+
 ## Local run
 
 ```sh
