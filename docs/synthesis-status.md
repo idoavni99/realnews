@@ -27,3 +27,14 @@ Next steps when a suitable free model is available:
   in this repository and verify the private deployment.
 
 The API key remains in the vault; temporary local secret copy was deleted.
+
+## 2026-11-03 later sides-only tests
+User narrowed output to per-side summaries only, with existing UI headline kept
+outside generation. One same-input Flash-Lite sample preserved both original
+leads; a digit-versus-Hebrew-number false positive remains in the numeric guard.
+A second real archived Walla lead tested rumor attribution and police denial.
+Generation preserved both. A separate same-model verifier call accepted that
+output and a supported synthetic control, rejected a reversed denial and a
+fabricated source/death claim. The candidate IDs were descriptive, not blinded;
+this is a small, weak initial verifier evaluation, not a reliability guarantee.
+Verification module remains experimental and unwired to production. No deployment.

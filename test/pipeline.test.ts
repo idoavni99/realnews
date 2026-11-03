@@ -141,3 +141,11 @@ test('side-only output rejects generated event/comparison fields', () => {
  const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},caveats:[],event:[]};
  assert.throws(()=>validateSynthesis(value,items),/Unexpected synthesis field/);
 });
+
+import { validateVerdicts } from '../src/verification.ts';
+test('verifier requires one explicit verdict per candidate and reasons for rejection',()=>{
+ assert.throws(()=>validateVerdicts({verdicts:[]},['a']),/Incomplete/);
+ assert.throws(()=>validateVerdicts({verdicts:[{id:'a',supported:false,reasons:[]}]},['a']),/Invalid/);
+ assert.throws(()=>validateVerdicts({verdicts:[{id:'a',supported:true,reasons:[]},{id:'a',supported:true,reasons:[]}]},['a','b']),/Incomplete/);
+ assert.equal(validateVerdicts({verdicts:[{id:'a',supported:false,reasons:['Reversed negation']}]},['a'])[0].supported,false);
+});
