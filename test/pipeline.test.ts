@@ -120,7 +120,7 @@ test('cluster anchor does not expand through a chain into another event', () => 
 import { validateSynthesis, synthesisInput } from '../src/synthesis.ts';
 test('synthesis rejects invented evidence and attribution to absent side', () => {
  const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
- const valid={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},caveats:[]};
+ const valid={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}}};
  assert.doesNotThrow(()=>validateSynthesis(valid,items));
  assert.throws(()=>validateSynthesis({...valid,sides:{...valid.sides,left:{summary:[{text:'Invented',article_ids:[99]}]}}},items));
  assert.throws(()=>validateSynthesis({...valid,sides:{...valid.sides,right:{summary:[{text:'Wrong side',article_ids:[0]}]}}},items));
@@ -131,14 +131,14 @@ test('synthesis rejects invented evidence and attribution to absent side', () =>
 import { readFileSync } from 'node:fs';
 test('real free-model duration hallucination is rejected, not published', () => {
  const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
- const current={sides:fixture.output.sides,caveats:fixture.output.caveats};
+ const current={sides:fixture.output.sides};
  assert.throws(()=>validateSynthesis(current,fixture.input),/Unsupported number/);
  // This is a narrow regression check, not proof of semantic accuracy.
 
 });
 test('side-only output rejects generated event/comparison fields', () => {
  const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
- const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},caveats:[],event:[]};
+ const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},event:[]};
  assert.throws(()=>validateSynthesis(value,items),/Unexpected synthesis field/);
 });
 
@@ -157,10 +157,19 @@ test('quantity normalization accepts Hebrew digit paraphrase but not changed qua
  assert.ok(!numberClaims('19 שנים').has('9'));
  assert.ok(numberClaims('לאחר כשעתיים').has('duration:2hours'));
  const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
- const value={sides:{left:{summary:[{text:'כ-9 שנים בשתי קדנציות',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}},caveats:[]};
+ const value={sides:{left:{summary:[{text:'כ-9 שנים בשתי קדנציות',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}}};
  assert.doesNotThrow(()=>validateSynthesis(value,fixture.input));
  value.sides.left.summary[0].text='כ-5 שנים';
  assert.throws(()=>validateSynthesis(value,fixture.input),/Unsupported number/);
  value.sides.left.summary[0].text='לאחר כשעתיים';
  assert.throws(()=>validateSynthesis(value,fixture.input),/Unsupported number/);
+});
+
+import { accessCaveats } from '../src/synthesis.ts';
+test('access caveats are deterministic metadata, not generated prose',()=>{
+ const a=parseFeed(FEED,SRC)[0];
+ assert.deepEqual(accessCaveats([{...a,extraction:'lead_only'}]),['חלק מהמידע מבוסס על פתיחי כתבות בלבד.']);
+ assert.deepEqual(accessCaveats([{...a,extraction:'full'}]),[]);
+ const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},caveats:['הדיווח הוא בגדר מזלג']};
+ assert.throws(()=>validateSynthesis(value,[a]),/Unexpected synthesis field/);
 });

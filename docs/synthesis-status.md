@@ -48,3 +48,11 @@ The valid digit/word paraphrase was accepted. This small set reuses two stories;
 it does not establish broad reliability or independence from generator errors.
 Numeric normalization now accepts תשע/9 without accepting 19 as 9, and rejects
 five years or two hours when unsupported. Twenty local tests pass. Not deployed.
+
+Three independent archived leads (six calls) tested accusation/lawyer attribution,
+conditional opinion, and preliminary memorandum versus completed project. Core
+summaries matched the leads, but the model generated a nonsensical access caveat
+("fork") and verifier approved it. This is a real verifier miss, preserved as a
+fixture. Access caveats now come solely from metadata, outside generation; output
+schema rejects model caveats. Verifier prompt now also asks for readable language,
+but that prompt change is untested. Feature remains off and unshipped.

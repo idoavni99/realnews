@@ -17,8 +17,9 @@ import { httpGet, sleep } from './http.ts';
 import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
 import { clusterItems } from './cluster.ts';
+import { verifyCandidates } from './verification.ts';
 import { createHash } from 'node:crypto';
-import { synthesizeStory, synthesisInput, validateSynthesis, type StorySynthesis } from './synthesis.ts';
+import { synthesizeStory, accessCaveats, synthesisInput, validateSynthesis, type StorySynthesis } from './synthesis.ts';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -29,7 +30,7 @@ interface StoryArticle {
 
 interface Story {
   headline: string; summary: string; counts: Record<string, number>;
-  total: number; articles: StoryArticle[]; synthesis?: StorySynthesis; synthesis_status?: string;
+  total: number; articles: StoryArticle[]; synthesis?: StorySynthesis; synthesis_status?: string; caveats?: string[];
 }
 
 /** Trim to ~max chars at a sentence boundary, never mid-word. */
@@ -86,17 +87,23 @@ async function main() {
   try { if(existsSync(cachePath)) cache=JSON.parse(readFileSync(cachePath,'utf8')); } catch { console.error('Ignoring invalid synthesis cache'); }
   const nextCache:Record<string,StorySynthesis>={};
   let calls=0, unavailable=false;
-  const maxCalls=30; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
+  const maxCalls=60; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
   for (const c of clusters) {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v4-sides-only-gemini-3.8-flash'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    const fingerprint=createHash('sha256').update('v6-sides-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     if(cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
     if(!synthesis && process.env.GEMINI_API_KEY && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
       synthesis_status='unavailable';
-      if(!unavailable && calls<maxCalls) {
+      if(!unavailable && calls+2<=maxCalls) {
         calls++;
-        try { synthesis=await synthesizeStory(c.items,process.env.GEMINI_API_KEY); synthesis_status='ready'; }
+        try {
+          const draft=await synthesizeStory(c.items,process.env.GEMINI_API_KEY);
+          calls++;
+          const verdicts=await verifyCandidates(c.items,[{id:'summary',summary:draft}],process.env.GEMINI_API_KEY);
+          if(!verdicts[0]?.supported) throw new Error('Verification rejected summary');
+          synthesis=draft; synthesis_status='ready';
+        }
         catch(e) { console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
         await sleep(5000);
       }
@@ -109,7 +116,7 @@ async function main() {
     stories.push({
       headline: c.items.reduce((a, b) => (b.title.length > a.title.length ? b : a)).title,
       summary: storySummary(c.items), // Existing source text, never a generated event summary.
-      synthesis, synthesis_status,
+      synthesis, synthesis_status, caveats: accessCaveats(c.items),
       counts,
       total: c.items.length,
       articles: c.items.map((i) => ({

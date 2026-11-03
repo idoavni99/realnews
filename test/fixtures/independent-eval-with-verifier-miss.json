@@ -1,0 +1,155 @@
+[
+  {
+    "index": 5,
+    "url": "https://www.ynet.co.il/news/article/r1ntzsd6ml",
+    "input": [
+      {
+        "id": 0,
+        "source": "Ynet",
+        "side": "center",
+        "title": "נהג שיכור במלגזה - ודרס למוות את חברו | תיעוד",
+        "published": "2026-11-03T15:22:02.211Z",
+        "evidence": "אזרח סרי לנקה נאשם בהמתה בקלות דעת של עובד אחר במפעל בגליל התחתון, גם הוא סרי לנקי. הוא נהג ללא רישיון ומחוץ לשעות העבודה, והמשיך בנסיעה בעוד הנוכחים במקום קוראים לו לעצור. עורך דינו טען: \"הוא לא התכוון לפגוע, הם היו חברים קרובים\"",
+        "access": "lead_only"
+      }
+    ],
+    "output": {
+      "sides": {
+        "left": {
+          "summary": []
+        },
+        "center": {
+          "summary": [
+            {
+              "text": "אזרח סרי לנקה נאשם בהמתה בקלות דעת של עובד סרי לנקי אחר במפעל בגליל התחתון, לאחר שנהג במלגזה תחת השפעת אלכוהול ללא רישיון ומחוץ שעות העבודה והמשיך לנסוע למרות קריאות הנוכחים לעצור.",
+              "article_ids": [
+                0
+              ]
+            },
+            {
+              "text": "עורך דינו טען כי הנאשם לא התכוון לפגוע וששניהם היו חברים קרובים.",
+              "article_ids": [
+                0
+              ]
+            }
+          ]
+        },
+        "right": {
+          "summary": []
+        }
+      },
+      "caveats": [
+        "הדיווח הוא בגדר מזלג (lead_only) וחסרים בו פרטים נוספים."
+      ]
+    },
+    "verdicts": [
+      {
+        "id": "summary",
+        "supported": true,
+        "reasons": [
+          "All summaries are fully supported by the article evidence without unsupported facts or contradictions."
+        ]
+      }
+    ]
+  },
+  {
+    "index": 16,
+    "url": "https://www.ynet.co.il/news/article/b1ockfd6fx",
+    "input": [
+      {
+        "id": 0,
+        "source": "Ynet",
+        "side": "center",
+        "title": "ערביי ישראל כבר עברו את מבחן הנאמנות",
+        "published": "2026-11-03T15:22:02.211Z",
+        "evidence": "אם ממשלת ישראל הבאה תודיע ל-21% אחוז מאזרחיה שהם לא רצויים פוליטית, הדבר עלול לגרור תגובות חריפות של ניכור ואפילו אלימות, מה שיספק כמובן הצדקה לפגיעה נוספת, בלתי מידתית, באזרחים הערבים, ובמדינת ישראל כולה",
+        "access": "lead_only"
+      }
+    ],
+    "output": {
+      "sides": {
+        "left": {
+          "summary": []
+        },
+        "center": {
+          "summary": [
+            {
+              "text": "הודעה מצד ממשלת ישראל הבאה לכ-21% מהאזרחים כי אינם רצויים פוליטית עלולה לגרור תגובות חריפות של ניכור ואלימות, דבר שיספק הצדקה לפגיעה נוספת ולא מידתית באזרחים הערבים ובמדינה כולה.",
+              "article_ids": [
+                0
+              ]
+            }
+          ]
+        },
+        "right": {
+          "summary": []
+        }
+      },
+      "caveats": [
+        "המידע מבוסס על פסקת פתיחה בלבד."
+      ]
+    },
+    "verdicts": [
+      {
+        "id": "summary",
+        "supported": true,
+        "reasons": [
+          "The summary accurately reflects the text in article 0 without adding unsupported facts or altering meanings."
+        ]
+      }
+    ]
+  },
+  {
+    "index": 26,
+    "url": "https://www.walla.co.il/news/world/383959943",
+    "input": [
+      {
+        "id": 0,
+        "source": "Walla",
+        "side": "center",
+        "title": "ברית גרעינית חדשה: ארדואן חתם על הסכם ענק בקוריאה",
+        "published": "2026-11-03T15:22:02.211Z",
+        "evidence": "אנקרה וסיאול חתמו על מזכר לשיתוף פעולה במימון פרויקטים גרעיניים, ברקע המגעים להקמת תחנת הכוח בסינופ שלחופי הים השחור. נשיא דרום קוריאה: בדיקות האתר ועבודת הצוות המשותף ״מתקדמות היטב״",
+        "access": "lead_only"
+      }
+    ],
+    "output": {
+      "sides": {
+        "left": {
+          "summary": []
+        },
+        "center": {
+          "summary": [
+            {
+              "text": "אנקרה וסיאול חתמו על מזכר לשיתוף פעולה במימון פרויקטים גרעיניים, על רקע המגעים להקמת תחנת הכוח בסינופ שעל חופי הים השחור.",
+              "article_ids": [
+                0
+              ]
+            },
+            {
+              "text": "נשיא דרום קוריאה מסר כי בדיקות האתר ועבודת הצוות המשותף מתקדמות היטב.",
+              "article_ids": [
+                0
+              ]
+            }
+          ]
+        },
+        "right": {
+          "summary": []
+        }
+      },
+      "caveats": [
+        "הדיווח מתבסס על פסקת פתיחה בלבד ופרטים נוספים אינם ידועים."
+      ]
+    },
+    "verdicts": [
+      {
+        "id": "summary",
+        "supported": true,
+        "reasons": [
+          "All points in the summary are directly supported by the article evidence without unsupported facts or contradictions."
+        ]
+      }
+    ]
+  }
+]
