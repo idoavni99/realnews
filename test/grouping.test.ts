@@ -314,7 +314,7 @@ test('unknown publication times skip temporal ordering but retain continuous sou
 
 test('110 distinct articles retain every checkpoint ID within bounded full-feed context',async()=>{
  const items=Array.from({length:110},(_,i)=>mk(i+1,`E${i}: `+'כותרת ארוכה '.repeat(12),'source'+i%10,'פתיח '.repeat(80)));
- const r=await groupArticles(items,mock(perfect).client,{batchTokens:24000,maxArticlesPerBatch:6,maxCalls:30});
+ const r=await groupArticles(items,mock(perfect).client,{batchTokens:24000,maxArticlesPerBatch:6,maxCalls:30,maxOutputTokens:4000});
  assert.equal(r.complete,true);assert.equal(r.groups.length,110);assert.ok(r.calls<=30);
  assert.ok(r.batches.every(b=>b.est_tokens<=24000&&b.article_ids.length<=6));
  let known=0;for(const b of r.batches){assert.equal(b.checkpoint_story_ids.length,known);known+=b.article_ids.length;}

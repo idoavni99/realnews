@@ -6,7 +6,7 @@ test('structured-output route requires parameter support and retains safe model 
  const old=globalThis.fetch;
  try {
   globalThis.fetch=async(_u,init)=>{
-   const b=JSON.parse(String(init?.body));assert.equal(b.provider.require_parameters,true);
+   const b=JSON.parse(String(init?.body));assert.equal(b.provider.require_parameters,true);assert.deepEqual(b.reasoning,{effort:'low'});
    assert.equal(b.model,'openrouter/free');assert.equal(b.response_format.json_schema.strict,true);
    return new Response(JSON.stringify({model:'selected/free',provider:'example',usage:{cost:0},choices:[{finish_reason:'stop',message:{content:'{"assignments":[]}'}}]}));
   };

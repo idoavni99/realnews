@@ -118,3 +118,14 @@ Mock replay of the actual110articles as all-distinct completed in19calls with
 max19643estimated tokens;12000and16000did not fit. This is capacity evidence, not
 live semantic validation or a tokenizer guarantee. Provider catalog at inspection
 listed1Mcontext for both previously selected models, but auto may change route.
+
+Second full-feed attempt failed at call5because the routed GLM default reasoning
+max consumed all2000completion tokens, leaving zero JSON. Its5calls cost$0.00531627,
+not completed-feed price. Catalog confirmed GLM mandatory reasoning with default
+max and supported low effort. Grouping/reconciliation now explicitly request low
+reasoning effort (not a hard budget guarantee) and4000completion tokens within
+the unchanged24000total estimate. No reasoning text is retained. Auto and required
+parameter support remain unchanged. Actual111article all-distinct mock replay fits
+19calls,max21712estimated tokens; no eviction. Summaries remain off. Source:
+https://openrouter.ai/docs/guides/best-practices/reasoning-tokens and live model
+metadata https://openrouter.ai/api/v1/models .
