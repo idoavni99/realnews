@@ -83,3 +83,10 @@ sends null, never synthetic source publication times. It reports pair-label
 performance only, not temporal quality or release approval. Its estimated total
 batch budget is 10000, including the unchanged 4000 completion allowance; call cap
 remains four. Do not run it without the separately approved inference scope.
+
+Clarified owner intent: missing publication time skips temporal ordering, NOT
+history compaction. If any input timestamp is missing/invalid, preserve input
+order within outlets and outlet encounter order in rounds. Continue the same
+round-robin across batch boundaries, without guessed dates or hash/epoch sorting.
+If all dates are known, chronological outlet queues and time-ordered heads apply.
+Checkpoint compaction remains independently governed by the context budget.

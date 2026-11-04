@@ -114,14 +114,18 @@ interface CkStory { id: string; title: string; brief?: string; count: number; pu
 /** Round-robin individual outlets, keeping each outlet chronological. The queue cursor
  * persists through token-packing boundaries, so small batches do not restart at source one. */
 export function sourceRoundRobin(items: FeedItem[]): FeedItem[] {
-  const sorted = [...items].sort((a,b) => time(a.published)-time(b.published) || articleId(a.url).localeCompare(articleId(b.url)));
+  // Unknown timestamps have no safe chronological position. If any are missing,
+  // preserve input order within outlets and outlet encounter order for each round.
+  // Do not use hashes, guessed dates or epoch zero as publication-time substitutes.
+  const temporalOrder=items.every(it=>publication(it.published)!==null);
+  const sorted = temporalOrder ? [...items].sort((a,b) => time(a.published)-time(b.published) || articleId(a.url).localeCompare(articleId(b.url))) : [...items];
   const buckets = new Map<string, FeedItem[]>();
   for (const it of sorted) { if (!buckets.has(it.source)) buckets.set(it.source, []); buckets.get(it.source)!.push(it); }
   const out: FeedItem[] = [];
   while (buckets.size) {
     // Each outlet gets one turn per round. Sort active heads by time to keep nearby
     // publication times adjacent without imposing a time window or dropping late coverage.
-    const round = [...buckets.entries()].sort((a,b) => time(a[1][0].published)-time(b[1][0].published) || a[0].localeCompare(b[0]));
+    const round = temporalOrder ? [...buckets.entries()].sort((a,b) => time(a[1][0].published)-time(b[1][0].published) || a[0].localeCompare(b[0])) : [...buckets.entries()];
     for (const [source, rows] of round) { out.push(rows.shift()!); if (!rows.length) buckets.delete(source); }
   }
   return out;

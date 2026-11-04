@@ -301,3 +301,12 @@ test('checkpoint retains publication range and latest evidence through compactio
  const missing=mock(perfect);await groupArticles([{...mk(1,'A'),published:''}],missing.client);
  assert.equal((missing.calls[0].input as any).new_articles[0].published,null);
 });
+
+test('unknown publication times skip temporal ordering but retain continuous source round-robin',async()=>{
+ const {sourceRoundRobin}=await import('../src/grouping.ts');
+ const items=[mk(9,'late A','one'),{...mk(7,'unknown B','two'),published:''},mk(1,'early A','one'),mk(2,'early B','two')];
+ assert.deepEqual(sourceRoundRobin(items).map(a=>a.title),['late A','unknown B','early A','early B']);
+ const m=mock(perfect);const r=await groupArticles(items,m.client,{maxArticlesPerBatch:1,checkpointShare:.001,batchTokens:10000});
+ assert.deepEqual(m.calls.flatMap(c=>(c.input as any).new_articles.map((a:any)=>a.title)),['late A','unknown B','early A','early B']);
+ assert.ok(r.batches.some(b=>b.checkpoint_level>0),'compaction remains independent of missing dates');
+});
