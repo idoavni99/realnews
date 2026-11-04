@@ -15,7 +15,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { FeedItem } from './rss.ts';
-import type { LlmClient } from './llm.ts';
+import { LlmOutputError, type LlmClient, type LlmDiagnostics } from './llm.ts';
 
 export interface GroupingConfig {
   /** Estimated input tokens allowed per call (instructions + checkpoint + new articles). */
@@ -44,7 +44,7 @@ export interface BatchRecord {
   index: number; article_ids: string[]; est_tokens: number;
   est_output_reserve: number; checkpoint_level: 0 | 1 | 2; checkpoint_story_ids: string[];
   status: 'ok' | 'rejected' | 'unavailable' | 'skipped' | 'unresolved';
-  input?: unknown; usage?: Record<string, unknown>; error?: string;
+  input?: unknown; usage?: Record<string, unknown>; diagnostics?: LlmDiagnostics; error?: string;
 }
 export interface GroupingResult {
   groups: Group[]; batches: BatchRecord[]; calls: number;
@@ -146,8 +146,8 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     rec.input = input;
     calls++;
     try {
-      const { json, usage } = await llm!.generateJson({ label: 'Grouping', system: GROUPING_INSTRUCTIONS, input, schema: GROUPING_SCHEMA, temperature: 0, maxOutputTokens: cfg.maxOutputTokens });
-      rec.usage = usage;
+      const { json, usage, diagnostics } = await llm!.generateJson({ label: 'Grouping', system: GROUPING_INSTRUCTIONS, input, schema: GROUPING_SCHEMA, temperature: 0, maxOutputTokens: cfg.maxOutputTokens });
+      rec.usage = usage; rec.diagnostics = diagnostics;
       const plan = validateAssignments(json, take, new Set(ck.stories.map(s => s.id)));
       const created = new Map<string, StoryState>();
       for (const id of take) {
@@ -160,6 +160,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
         }
       }
     } catch (e) {
+      if (e instanceof LlmOutputError) { rec.diagnostics = e.diagnostics; rec.usage = e.diagnostics?.usage; }
       const msg = (e as Error).message.slice(0, 250); rec.error = msg;
       if (FATAL.test(msg) || !/Invalid grouping/.test(msg) && !/Empty Grouping/.test(msg) && !(e instanceof SyntaxError)) { rec.status = 'unavailable'; stopped = true; }
       else rec.status = 'rejected';

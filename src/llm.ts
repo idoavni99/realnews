@@ -19,7 +19,12 @@ export interface LlmRequest {
   temperature: number;
   maxOutputTokens: number;
 }
-export interface LlmResponse { json: unknown; usage?: Record<string, unknown> }
+export interface LlmDiagnostics { requested_model: string; model?: string; provider?: string; finish_reason?: string; native_finish_reason?: string; usage?: Record<string, unknown>; content_chars: number }
+export class LlmOutputError extends Error {
+  diagnostics?: LlmDiagnostics;
+  constructor(message: string, diagnostics?: LlmDiagnostics) { super(message); this.name = 'LlmOutputError'; this.diagnostics = diagnostics; }
+}
+export interface LlmResponse { json: unknown; usage?: Record<string, unknown>; diagnostics?: LlmDiagnostics }
 export interface LlmClient { generateJson(req: LlmRequest): Promise<LlmResponse> }
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -45,6 +50,7 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model,
+          provider: { require_parameters: true },
           temperature: req.temperature,
           max_tokens: req.maxOutputTokens,
           messages: [
@@ -60,9 +66,17 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
       });
       if (!r.ok) throw new Error(`${req.label} HTTP ${r.status}: ${(await r.text()).slice(0, 1000)}`);
       const d = await r.json();
-      const text = d.choices?.[0]?.message?.content;
-      if (!text || typeof text !== 'string') throw new Error(`Empty ${req.label}`);
-      return { json: JSON.parse(text), usage: d.usage };
+      const c = d.choices?.[0];
+      const text = c?.message?.content;
+      const diagnostics: LlmDiagnostics = { requested_model: model, model: d.model, provider: d.provider,
+        finish_reason: c?.finish_reason, native_finish_reason: c?.native_finish_reason,
+        usage: d.usage, content_chars: typeof text === 'string' ? text.length : 0 };
+      if (c?.finish_reason === 'length') throw new LlmOutputError(`Truncated ${req.label}: output token limit`, diagnostics);
+      if (!text || typeof text !== 'string') throw new LlmOutputError(`Empty ${req.label}`, diagnostics);
+      let json: unknown;
+      try { json = JSON.parse(text); }
+      catch { throw new LlmOutputError(`Invalid JSON ${req.label}`, diagnostics); }
+      return { json, usage: d.usage, diagnostics };
     },
   };
 }

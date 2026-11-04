@@ -29,3 +29,8 @@ Workflow dispatch with `synthesis=true` and `grouping=true`, `publish=false`. Sc
 - Free-tier rate limits at this call volume (about 5 grouping calls per 90 articles plus summaries and verification).
 
 Schema assignment checks IDs and shape only, not event coherence. The Nov4 free-router run produced false merges despite schema-valid assignments; see test/fixtures/free-router-false-merges.json. Any group containing an unvalidated member remains unvalidated. Do not treat complete=true as a quality score.
+
+## Local fixed sample
+`OPENROUTER_API_KEY` supplied securely to `node scripts/sample-grouping.ts` runs ten fixed articles (two known paraphrase pairs and three captured unrelated false-merge pairs), with at most two grouping calls, no synthesis and no feed fetch or publication. Route is hardcoded to `openrouter/free`. One member per pair enters each batch. Output defaults to `/tmp/realnews-sample.json`. A schema-assigned answer is scored against the fixed labels separately; unvalidated pairs are not counted as model decisions.
+
+The transport now requests `provider.require_parameters=true`, keeps model/provider/finish reason/usage metadata, and fails explicitly on length truncation, missing content and non-JSON. Raw malformed answer text is not logged. This improves diagnostics and routing compatibility; it does not prove event coherence or native strict-schema enforcement by every endpoint.
