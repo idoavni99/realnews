@@ -74,9 +74,13 @@ export const GROUPING_SCHEMA = { type: 'OBJECT', properties: { assignments: { ty
 /** Constrain existing-story references to this call's checkpoint, rather than arbitrary strings. */
 export function groupingSchema(knownIds: string[]) {
   const schema = JSON.parse(JSON.stringify(GROUPING_SCHEMA));
-  const field = schema.properties.assignments.items.properties.story_id;
-  // Empty string represents no existing-story target, alongside a nonempty new_key.
-  field.enum = ['', ...knownIds];
+  const item = schema.properties.assignments.items;
+  item.properties.story_id.enum = ['', ...knownIds];
+  // Runtime treats an empty string as absent. Require exactly one NONEMPTY target.
+  item.oneOf = [
+    ...(knownIds.length ? [{ required: ['story_id'], properties: { story_id: { type: 'STRING', enum: knownIds }, new_key: { type: 'STRING', enum: [''] } } }] : []),
+    { required: ['new_key'], properties: { new_key: { type: 'STRING', minLength: 1, maxLength: 60 }, story_id: { type: 'STRING', enum: [''] } } },
+  ];
   return schema;
 }
 
@@ -86,6 +90,22 @@ export const RECONCILE_SCHEMA = { type: 'OBJECT', properties: { merges: { type: 
 
 interface StoryState { id: string; title: string; brief: string; members: string[] }
 interface CkStory { id: string; title: string; brief?: string; count: number }
+
+/** Round-robin individual outlets, keeping each outlet chronological. The queue cursor
+ * persists through token-packing boundaries, so small batches do not restart at source one. */
+export function sourceRoundRobin(items: FeedItem[]): FeedItem[] {
+  const sorted = [...items].sort((a,b) => Date.parse(a.published)-Date.parse(b.published) || articleId(a.url).localeCompare(articleId(b.url)));
+  const buckets = new Map<string, FeedItem[]>();
+  for (const it of sorted) { if (!buckets.has(it.source)) buckets.set(it.source, []); buckets.get(it.source)!.push(it); }
+  const out: FeedItem[] = [];
+  while (buckets.size) {
+    // Each outlet gets one turn per round. Sort active heads by time to keep nearby
+    // publication times adjacent without imposing a time window or dropping late coverage.
+    const round = [...buckets.entries()].sort((a,b) => Date.parse(a[1][0].published)-Date.parse(b[1][0].published) || a[0].localeCompare(b[0]));
+    for (const [source, rows] of round) { out.push(rows.shift()!); if (!rows.length) buckets.delete(source); }
+  }
+  return out;
+}
 
 const lead = (it: FeedItem, n: number) => (it.fulltext || it.summary || '').replace(/\s+/g, ' ').slice(0, n);
 
@@ -112,7 +132,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
   // Dedup by canonical URL, keep all originals addressable by stable id.
   const byId = new Map<string, FeedItem>();
   for (const it of items) { const id = articleId(it.url); if (!byId.has(id)) byId.set(id, it); }
-  const queue = [...byId.entries()].sort((a, b) => Date.parse(a[1].published) - Date.parse(b[1].published) || (a[0] < b[0] ? -1 : 1)).map(([id]) => id);
+  const queue = sourceRoundRobin([...byId.values()]).map(it => articleId(it.url));
   const stories: StoryState[] = [];
   let nextStory = 1; let calls = 0; let stopped = !llm;
   const batches: BatchRecord[] = [];

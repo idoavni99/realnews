@@ -6,8 +6,9 @@ const positivesAndNegatives=JSON.parse(readFileSync(new URL('../test/fixtures/gr
 const captured=JSON.parse(readFileSync(new URL('../test/fixtures/free-router-false-merges.json',import.meta.url),'utf8')).cases;
 const pairs=[...positivesAndNegatives.map((x:any)=>({id:x.id,expected:x.expected_same,articles:[x.a,x.b]})),...captured.map((x:any)=>({id:x.case_id,expected:false,articles:x.articles}))];
 const unique=new Map<string,any>();
+const sourceId=(s:string)=>({Ynet:'ynet',Maariv:'maariv',i24NEWS:'i24','הארץ':'haaretz','סרוגים':'srugim'}[s]||s);
 // First members before second members so repeated events exercise checkpoint carryover.
-for(const turn of [0,1])for(const p of pairs){const a=p.articles[turn];if(!unique.has(a.url))unique.set(a.url,{...a,sourceName:a.source,published:new Date(Date.UTC(2026,10,4,0,unique.size)).toISOString()});}
+for(const turn of [0,1])for(const p of pairs){const a=p.articles[turn];if(!unique.has(a.url))unique.set(a.url,{...a,source:sourceId(a.source),sourceName:a.source,published:new Date(Date.UTC(2026,10,4,0,unique.size)).toISOString()});}
 const key=process.env.OPENROUTER_API_KEY;if(!key)throw new Error('Secure key required');
 const model=process.env.EVALUATION_MODEL||'openrouter/free';
 if(!['openrouter/free','openrouter/auto'].includes(model))throw new Error('Unsupported evaluation route');
