@@ -53,9 +53,11 @@ function storySummary(items: FeedItem[]): string {
 
 async function main() {
   const cfg = loadConfig(ROOT);
+  const only = process.env.REALNEWS_SOURCES?.split(',').map(s => s.trim()).filter(Boolean);
+  const sources = only?.length ? cfg.sources.filter(s => only.includes(s.id)) : cfg.sources;
   const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
   // Feeds are independent: fetch them together. One failure stays that source's.
-  const fetched = await Promise.all(cfg.sources.map(async (s) => {
+  const fetched = await Promise.all(sources.map(async (s) => {
     try {
       const payload = await httpGet(s.rss);
       const got = (s.format === 'i24_json' ? parseI24News(payload, s) : parseFeed(payload, s))
@@ -108,11 +110,11 @@ async function main() {
   const review:unknown[]=[];
   const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
   let calls=0, unavailable=false;
-  const maxCalls=60; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
+  const maxCalls=Number(process.env.REALNEWS_MAX_CALLS??60); // Bounded free-only standard API calls. No paid or alternate-provider fallback.
   for (const c of clusters) {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v7-event-verified-openrouter-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    const fingerprint=createHash('sha256').update('v7-event-verified-openrouter-auto'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     const heldBack=!!(c as {unvalidated?:boolean}).unvalidated; // not grouped by a validated model answer: no generated summary
     if(heldBack) synthesis_status='grouping_unvalidated';
     if(!heldBack && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
@@ -164,7 +166,7 @@ async function main() {
   };
   writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,stories:review},null,2));
   writeFileSync(cachePath,JSON.stringify(nextCache));
-  const dest = join(ROOT, 'site', 'data.json');
+  const dest = join(ROOT, process.env.REALNEWS_OUT ?? 'site/data.json');
   writeFileSync(dest, JSON.stringify(out, null, 1));
   const nFull = items.filter((i) => i.extraction === 'full').length;
   console.error(`wrote ${stories.length} stories, ${items.length} items (${nFull} full-text) -> ${dest}`);

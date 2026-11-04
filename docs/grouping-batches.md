@@ -21,7 +21,7 @@ Each group has `grouping: 'model_validated' | 'unvalidated'`. Invalid or unusabl
 Workflow dispatch with `synthesis=true` and `grouping=true`, `publish=false`. Scheduled runs never enable it. Without a configured provider or flags, the existing exact-headline clustering runs unchanged.
 
 ## Provider boundary
-`src/llm.ts` is the only provider-specific file. `LlmClient.generateJson({label, system, input, schema, temperature, maxOutputTokens})` returns `{json, usage?}`; contract in the file header. Grouping, reconciliation, synthesis and verification all use it. The transport is OpenRouter (`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`, default `google/gemini-3.5-flash-lite`) via `fetch` to `/api/v1/chat/completions`. Callers still pass Gemini-dialect schemas (OBJECT/STRING); `llm.ts` lowercases those types into JSON Schema.
+`src/llm.ts` is the only provider-specific file. `LlmClient.generateJson({label, system, input, schema, temperature, maxOutputTokens})` returns `{json, usage?}`; contract in the file header. Grouping, reconciliation, synthesis and verification all use it. The transport is OpenRouter (`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`, default `openrouter/auto`) via `fetch` to `/api/v1/chat/completions`. Callers still pass Gemini-dialect schemas (OBJECT/STRING); `llm.ts` lowercases those types into JSON Schema.
 
 ## Not verified
 - Real model quality: same-event recall and false merges are unmeasured. The 11 labeled pairs in `test/fixtures/grouping-evaluation.json` are the first thing to run (generation-free baseline was 0/4 recall).

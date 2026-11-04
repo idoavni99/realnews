@@ -1,5 +1,5 @@
 {
-  "model": "gemini-3.5-flash-lite",
+  "model": "openrouter/auto",
   "scope": "One blind verification call, no generation. Real archived public leads; all candidate summaries are synthetic controls or reconstructed prior failures.",
   "cases": [
     {
