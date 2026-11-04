@@ -1,7 +1,7 @@
 /** One-call continuation of a saved local sample. No feed/synthesis/publication. */
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createOpenRouterClient,LlmOutputError} from '../src/llm.ts';
-import {articleId,validateAssignments,GROUPING_INSTRUCTIONS,GROUPING_SCHEMA} from '../src/grouping.ts';
+import {articleId,validateAssignments,GROUPING_INSTRUCTIONS,groupingSchema} from '../src/grouping.ts';
 const saved=JSON.parse(readFileSync(process.env.SAMPLE_PREVIOUS||'/tmp/realnews-sample-second.json','utf8'));
 const accepted=saved.result.groups.filter((g:any)=>g.grouping==='schema_assigned');
 if(accepted.length!==5||accepted.some((g:any)=>g.items.length!==1))throw new Error('Expected saved five accepted singleton groups');
@@ -13,7 +13,7 @@ const input={checkpoint,new_articles:remaining.map((a:any)=>({id:articleId(a.url
 const key=process.env.OPENROUTER_API_KEY;if(!key)throw new Error('Secure key required');
 let out:any={input,route:'openrouter/free',call_bound:1};
 try{
- const r=await createOpenRouterClient(key,'openrouter/free').generateJson({label:'Grouping',system:GROUPING_INSTRUCTIONS,input,schema:GROUPING_SCHEMA,temperature:0,maxOutputTokens:2000});
+ const r=await createOpenRouterClient(key,'openrouter/free').generateJson({label:'Grouping',system:GROUPING_INSTRUCTIONS,input,schema:groupingSchema(checkpoint.stories.map(s=>s.id),input.new_articles.map(a=>a.id)),temperature:0,maxOutputTokens:2000});
  const plan=validateAssignments(r.json,input.new_articles.map(a=>a.id),new Set(checkpoint.stories.map(a=>a.id)));
  const label=new Map<string,string>();prior.forEach((g:any,i:number)=>label.set(g.articleIds[0],'s'+(i+1)));
  for(const [id,a] of plan)label.set(id,a.story_id||'new:'+a.new_key);

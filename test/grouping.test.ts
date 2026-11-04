@@ -13,7 +13,15 @@ const id = (n: number, source = 'ynet') => articleId(`https://${source}.example/
 /** Mock model: rules is a function of the request input; records every request. */
 function mock(decide: (input: any, call: number) => unknown | Error) {
   const calls: LlmRequest[] = [];
-  const client: LlmClient = { async generateJson(req) { calls.push(JSON.parse(JSON.stringify(req))); const r = decide(req.input, calls.length); if (r instanceof Error) throw r; return { json: r, usage: { promptTokenCount: 1 } }; } };
+  const client: LlmClient = { async generateJson(req) { calls.push(JSON.parse(JSON.stringify(req))); const r = decide(req.input, calls.length); if (r instanceof Error) throw r; const keys=new Map<string,string>();
+    if ((r as any)?.assignments) (r as any).assignments=(r as any).assignments.map((a:any)=>{
+      if('target' in a || !('story_id' in a || 'new_key' in a)) return a;
+      if(a.story_id&&a.new_key)return a;
+      if(a.story_id)return {article_id:a.article_id,target:a.story_id};
+      if(!keys.has(a.new_key))keys.set(a.new_key,'new:'+(keys.size+1));
+      return {article_id:a.article_id,target:keys.get(a.new_key)};
+    });
+    return { json: r, usage: { promptTokenCount: 1 } }; } };
   return { client, calls };
 }
 // Group by an explicit event tag embedded in the title, like a perfect model would.
@@ -70,14 +78,15 @@ test('invalid answer fails closed: batch articles stay separate, run continues',
   assert.match(r.batches[0].error!, /unknown article id/);
 });
 
-test('missing, duplicate, or ambiguous assignment is rejected', () => {
-  const sent = ['a_1', 'a_2'];
-  const known = new Set(['s1']);
-  assert.throws(() => validateAssignments({ assignments: [{ article_id: 'a_1', new_key: 'k' }] }, sent, known), /not every article/);
-  assert.throws(() => validateAssignments({ assignments: [{ article_id: 'a_1', new_key: 'k' }, { article_id: 'a_1', new_key: 'k' }] }, sent, known), /duplicate/);
-  assert.throws(() => validateAssignments({ assignments: [{ article_id: 'a_1', story_id: 's1', new_key: 'k' }, { article_id: 'a_2', new_key: 'k' }] }, sent, known), /exactly one/);
-  assert.throws(() => validateAssignments({ assignments: [{ article_id: 'a_1', story_id: 's9' }, { article_id: 'a_2', new_key: 'k' }] }, sent, known), /unknown story/);
-  assert.equal(validateAssignments({ assignments: [{ article_id: 'a_1', story_id: 's1' }, { article_id: 'a_2', new_key: 'k' }] }, sent, known).size, 2);
+test('missing, duplicate, ambiguous and invented assignment IDs are rejected',()=>{
+ const sent=['a_1','a_2'],known=new Set(['s1']);
+ assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'new:1'}]},sent,known),/not every article/);
+ assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'new:1'},{article_id:'a_1',target:'new:1'}]},sent,known),/duplicate/);
+ assert.throws(()=>validateAssignments({assignments:[{target:'new:1'}]},sent,known),/unknown article/);
+ assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'s9'}]},sent,known),/unknown target/);
+ assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'new:3'}]},sent,known),/unknown target/);
+ assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'s1',new_key:'x'}]},sent,known),/unexpected/);
+ assert.equal(validateAssignments({assignments:[{article_id:'a_1',target:'s1'},{article_id:'a_2',target:'new:1'}]},sent,known).size,2);
 });
 
 test('HTTP 503 stops further calls and leaves remaining articles ungrouped', async () => {
@@ -180,7 +189,7 @@ test('optional reconciliation merges via validated ids only and is off by defaul
 });
 
 test('the transport is the only provider-specific piece: a custom client drives grouping unchanged', async () => {
-  const custom: LlmClient = { generateJson: async req => ({ json: { assignments: (req.input as any).new_articles.map((a: any) => ({ article_id: a.id, new_key: 'same' })) } }) };
+  const custom: LlmClient = { generateJson: async req => ({ json: { assignments: (req.input as any).new_articles.map((a: any) => ({ article_id: a.id, target: 'new:1' })) } }) };
   const r = await groupArticles([mk(1, 'x'), mk(2, 'y', 'walla')], custom);
   assert.equal(r.groups.length, 1);
 });
@@ -229,11 +238,11 @@ test('each call constrains story IDs to its checkpoint and retains invalid IDs f
  const r=await groupArticles(items,m.client,{maxArticlesPerBatch:2,maxCalls:2});
  for(let i=0;i<m.calls.length;i++){
   const input:any=m.calls[i].input;const schema:any=m.calls[i].schema;
-  assert.deepEqual(schema.properties.assignments.items.properties.story_id.enum,['',...input.checkpoint.stories.map((s:any)=>s.id)]);
+  assert.deepEqual(schema.properties.assignments.items.properties.target.enum,[...input.checkpoint.stories.map((s:any)=>s.id),...input.new_articles.map((_:any,j:number)=>'new:'+(j+1))]);
  }
  assert.equal(r.batches[1].status,'rejected');
  assert.match(r.batches[1].error!,/fabricated-story/);
- assert.equal((r.batches[1].assignment_output as any)[0].story_id,'fabricated-story');
+ assert.equal((r.batches[1].assignment_output as any)[0].target,'fabricated-story');
  assert.ok(r.groups.filter(g=>g.items.some(a=>[items[2].url,items[3].url].includes(a.url))).every(g=>g.grouping==='unvalidated'));
 });
 
@@ -253,15 +262,11 @@ test('every fitting full-source round contains one article from each active outl
  for(const b of r.batches)assert.equal(new Set(b.article_ids.map(id=>items.find(x=>articleId(x.url)===id)!.source)).size,3);
 });
 
-test('schema and runtime require exactly one nonempty assignment target',async()=>{
- const {groupingSchema}=await import('../src/grouping.ts');
- const item=groupingSchema(['s1']).properties.assignments.items;
- assert.equal(item.oneOf.length,2);
- assert.deepEqual(item.oneOf[0].properties.story_id.enum,['s1']);
- assert.deepEqual(item.oneOf[0].properties.new_key.enum,['']);
- assert.deepEqual(item.oneOf[1].properties.story_id.enum,['']);
- const row={article_id:'a',story_id:'s1',new_key:'unrelated-new-story'};
- assert.throws(()=>validateAssignments({assignments:[row]},['a'],new Set(['s1'])),/exactly one/);
+test('flat schema requires article ID and one target, with no branching',()=>{
+ const item=groupingSchema(['s1'],['a','b']).properties.assignments.items;
+ assert.deepEqual(item.required,['article_id','target']);assert.equal(item.oneOf,undefined);
+ assert.deepEqual(item.properties.article_id.enum,['a','b']);assert.deepEqual(item.properties.target.enum,['s1','new:1','new:2']);
+ assert.throws(()=>validateAssignments({assignments:[{article_id:'a',story_id:'s1',new_key:'x'}]},['a'],new Set(['s1'])),/unexpected/);
 });
 
 test('active source heads are time-ordered each round without a hard time cutoff',async()=>{

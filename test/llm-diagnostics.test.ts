@@ -23,3 +23,16 @@ test('malformed, empty and truncated outputs fail with metadata, never raw respo
   }
  }finally{globalThis.fetch=old;}
 });
+
+test('flat grouping schema reaches transport with required article and target enums',async()=>{
+ const {groupingSchema}=await import('../src/grouping.ts');const old=globalThis.fetch;
+ try{
+  globalThis.fetch=async(_u,init)=>{
+   const b=JSON.parse(String(init?.body));const row=b.response_format.json_schema.schema.properties.assignments.items;
+   assert.deepEqual(row.required,['article_id','target']);assert.deepEqual(row.properties.article_id.enum,['a']);
+   assert.deepEqual(row.properties.target.enum,['s1','new:1']);assert.equal(row.oneOf,undefined);assert.equal(row.additionalProperties,false);
+   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'{"assignments":[{"article_id":"a","target":"s1"}]}'}}]}));
+  };
+  await createOpenRouterClient('not-real','openrouter/free').generateJson({...req,schema:groupingSchema(['s1'],['a'])});
+ }finally{globalThis.fetch=old;}
+});
