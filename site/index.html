@@ -111,12 +111,8 @@ function weighted(story) {
     for (const g in WEIGHTS[s]) w[g] += WEIGHTS[s][g] * (story.counts[s] || 0);
   return w;
 }
-/* Each story sits once, under the group with most actual articles (ties: center, right, left). Other groups show in its legend. */
-function primaryGroup(story) {
-  let best = null, n = 0;
-  for (const g of ['center', 'right', 'left']) { const c = groupCount(story, g); if (c > n) { best = g; n = c; } }
-  return best;
-}
+/* A story appears in every group that has an actual article by raw owner label. Weight alone never adds a group. */
+function storyGroups(story) { return SIDE_ORDER.filter(g => groupCount(story, g) > 0); }
 
 function coverageHtml(story) {
   const groups = SIDE_ORDER.filter(groupMonitored);
@@ -152,7 +148,7 @@ function renderFeed() {
       ${coverageHtml(s)}
     </a>`;
   const bucket = {};
-  DATA.stories.forEach((s, i) => (bucket[primaryGroup(s) || 'unlabeled'] = bucket[primaryGroup(s) || 'unlabeled'] || []).push(card(s, i)));
+  DATA.stories.forEach((s, i) => { const gs = storyGroups(s); (gs.length ? gs : ['unlabeled']).forEach(g => (bucket[g] = bucket[g] || []).push(card(s, i))); });
   const titles = { right: 'ימין + מרכז־ימין', center: 'מרכז', left: 'שמאל + מרכז־שמאל', unlabeled: 'ללא תיוג צדדים' };
   document.getElementById('feed').innerHTML = [...SIDE_ORDER, 'unlabeled'].filter(g => bucket[g]).map(g =>
     `<h2 class="grp ${g}">${titles[g]}</h2>` + bucket[g].join('')).join('') +
