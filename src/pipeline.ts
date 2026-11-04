@@ -57,7 +57,8 @@ async function main() {
   const groupingConfig=validateGroupingConfig({
     delayMs:Number(process.env.REALNEWS_LLM_DELAY_MS??5000),
     maxCalls:Number(process.env.REALNEWS_GROUPING_MAX_CALLS??30),
-    batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS??6000),
+    batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS??24000),
+    maxArticlesPerBatch:Number(process.env.REALNEWS_GROUPING_MAX_ARTICLES??6),
     reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
   });
   const cfg = loadConfig(ROOT);

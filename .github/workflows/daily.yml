@@ -46,6 +46,8 @@ jobs:
       - name: Run pipeline
         env:
           REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
+          REALNEWS_GROUPING_BATCH_TOKENS: ${{ vars.REALNEWS_GROUPING_BATCH_TOKENS || '24000' }}
+          REALNEWS_GROUPING_MAX_ARTICLES: '6'
           REALNEWS_GROUPING: ${{ (inputs.grouping || (github.event_name == 'schedule' && vars.REALNEWS_GROUPING == 'model')) && 'model' || 'lexical' }}
           OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || vars.OPENROUTER_MODEL || 'openrouter/auto' }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

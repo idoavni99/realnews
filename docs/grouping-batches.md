@@ -108,3 +108,13 @@ opt-in, without a human approval file for each digest. This is technical contrac
 validation, not independent event verification. The site labels automatic grouping
 as fallible. Generated summaries still require exact-data quality approval; the
 opt-in cannot bypass incomplete membership, failed summaries or unvalidated groups.
+
+First scheduled-path full-feed attempt had110unique articles but6000estimated
+total context allowed only21articles before the non-evicting checkpoint filled.
+Its4accepted calls cost$0.00135140; that is partial-run cost, not completion price.
+Pipeline full-feed context is corrected to24000estimated total tokens with an
+independent6article/call cap, still30calls and2000completion tokens per call.
+Mock replay of the actual110articles as all-distinct completed in19calls with
+max19643estimated tokens;12000and16000did not fit. This is capacity evidence, not
+live semantic validation or a tokenizer guarantee. Provider catalog at inspection
+listed1Mcontext for both previously selected models, but auto may change route.
