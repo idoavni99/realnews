@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
       synthesis:
-        description: Enable bounded free synthesis and verification
+        description: Enable bounded synthesis and verification (independent of grouping)
         type: boolean
         default: false
       free_test:
@@ -19,7 +19,7 @@ on:
         type: boolean
         default: false
       grouping:
-        description: Use model-led batched grouping (needs synthesis on; staged only unless publish)
+        description: Use model-led batched grouping independently (staged; quality gate required)
         type: boolean
         default: false
 
@@ -51,18 +51,22 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
       - name: Preserve staged output
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: staged-digest
-          path: site/data.json
+          path: .review/staged-data.json
           retention-days: 3
       - name: Private review evidence
-        if: github.event_name == 'workflow_dispatch' && !inputs.publish
+        if: always() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: private-review-evidence
           path: .review/evidence.json
           retention-days: 1
+      - name: Publication quality gate
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
+        run: node scripts/publication-gate.ts
       - name: Commit updated data
         if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
         run: |

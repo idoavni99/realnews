@@ -36,3 +36,11 @@ test('flat grouping schema reaches transport with required article and target en
   await createOpenRouterClient('not-real','openrouter/free').generateJson({...req,schema:groupingSchema(['s1'],['a'])});
  }finally{globalThis.fetch=old;}
 });
+
+test('HTTP errors retain bounded retry metadata without raw provider body',async()=>{
+ const old=globalThis.fetch;
+ try {globalThis.fetch=async()=>new Response('private provider body',{status:429,headers:{'retry-after':'60'}});
+ await assert.rejects(createOpenRouterClient('not-real').generateJson(req),e=>{
+ assert.ok(e instanceof LlmOutputError);assert.equal(e.diagnostics?.http_status,429);assert.equal(e.diagnostics?.retry_after,'60');assert.ok(!e.message.includes('private'));return true;});
+ }finally{globalThis.fetch=old;}
+});

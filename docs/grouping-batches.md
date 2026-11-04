@@ -52,3 +52,34 @@ Batch order is source-round-robin, not source-by-source: one article from each a
 Assignment schema uses an explicit oneOf for nonempty story_id versus nonempty new_key. Both-field ambiguity remains an error; the application never guesses which target the model intended.
 
 Current assignment wire contract supersedes the earlier XOR/oneOf shape: every row has exactly required `article_id` and `target`. Article ID is an enum of the sent batch; target is an enum of checkpoint story IDs plus new:1..new:N, with shared new tokens forming a new group. No optional mutually exclusive fields or schema branching. Runtime still rejects missing/duplicate/invented IDs, unknown targets, extra fields and incomplete coverage. It never reconstructs omitted IDs or repairs previous malformed outputs. Transport mock checks confirm flat schema survives JSON-schema conversion. This improves contract simplicity; live provider compliance remains untested after the change.
+
+## Preflight and release safety (November 4)
+
+Grouping and synthesis are independent opt-ins. Requesting a model stage without a
+provider, or an invalid numeric configuration, fails before ingestion/network I/O.
+Batch estimates include the exact candidate's schema and payload and the full
+requested completion allowance. They are character heuristics, not measured
+context-token guarantees; a reasoning model can still exhaust its output budget.
+No checkpoint story is evicted. Original article evidence remains in the group;
+checkpoint compaction is deliberately lossy. Publication ranges and latest member
+metadata survive compaction, but short titles are not event verification.
+
+Incomplete grouping saves `.review/staged-data.json` and evidence, then fails
+without overwriting `site/data.json`. The workflow's publication gate separately
+rejects incomplete membership, failed summaries and experimental data lacking
+human quality approval bound to the exact parsed JSON SHA-256. An approval file
+is never created by an evaluator. No current experimental run has this approval.
+Staged UI renders warn on incomplete membership and suppress misleading coverage
+and absent-side assertions on unvalidated groups.
+
+Every pipeline model attempt is recorded in review evidence with its stage,
+returned routing/usage diagnostics when available, or bounded failure metadata.
+Missing usage is counted, not treated as zero cost; the provider key ledger remains
+the spending source of truth. Summary cache reuse is off unless explicitly enabled,
+and fingerprints include the requested route, not a guarantee of the same auto model.
+
+The labelled evaluator preserves original dates where available and otherwise
+sends null, never synthetic source publication times. It reports pair-label
+performance only, not temporal quality or release approval. Its estimated total
+batch budget is 10000, including the unchanged 4000 completion allowance; call cap
+remains four. Do not run it without the separately approved inference scope.

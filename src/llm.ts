@@ -19,7 +19,7 @@ export interface LlmRequest {
   temperature: number;
   maxOutputTokens: number;
 }
-export interface LlmDiagnostics { requested_model: string; model?: string; provider?: string; finish_reason?: string; native_finish_reason?: string; usage?: Record<string, unknown>; content_chars: number }
+export interface LlmDiagnostics { requested_model: string; model?: string; provider?: string; finish_reason?: string; native_finish_reason?: string; usage?: Record<string, unknown>; content_chars: number; http_status?: number; retry_after?: string }
 export class LlmOutputError extends Error {
   diagnostics?: LlmDiagnostics;
   constructor(message: string, diagnostics?: LlmDiagnostics) { super(message); this.name = 'LlmOutputError'; this.diagnostics = diagnostics; }
@@ -64,7 +64,7 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
         }),
         signal: AbortSignal.timeout(90000),
       });
-      if (!r.ok) throw new Error(`${req.label} HTTP ${r.status}: ${(await r.text()).slice(0, 1000)}`);
+      if (!r.ok) throw new LlmOutputError(`${req.label} HTTP ${r.status}`, {requested_model:model,content_chars:0,http_status:r.status,retry_after:r.headers.get('retry-after')?.slice(0,120)});
       const d = await r.json();
       const c = d.choices?.[0];
       const text = c?.message?.content;

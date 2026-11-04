@@ -87,6 +87,7 @@ footer.health .ok { color: #4a7d5d; } footer.health .bad { color: #b04a4a; }
   <h1>הסיפור משני הצדדים</h1>
   <div class="meta" id="meta">טוען…</div>
   <div class="banner" id="banner" hidden></div>
+  <div class="banner" id="grouping-warning" role="alert" hidden></div>
 </div></header>
 <main class="wrap" id="feed"></main>
 <div class="overlay" id="overlay">
@@ -115,6 +116,7 @@ function weighted(story) {
 function storyGroups(story) { return SIDE_ORDER.filter(g => groupCount(story, g) > 0); }
 
 function coverageHtml(story) {
+  if(story.grouping_status==='unvalidated')return '<p class="note">נתוני כיסוי לפי אירוע אינם זמינים לקיבוץ שלא אומת.</p>';
   const groups = SIDE_ORDER.filter(groupMonitored);
   const w = weighted(story);
   const counted = groups.reduce((a, g) => a + w[g], 0);
@@ -139,11 +141,15 @@ function coverageHtml(story) {
   return `<div class="cov">${half.length ? '<div class="cov-cap">כיסוי משוקלל (מרכז־שמאל ומרכז־ימין = חצי משקל)</div>' : ''}<div class="cov-bar">${segs}</div><div class="cov-legend">${legend}</div></div>`;
 }
 
+function groupingWarning(s) {
+  return s.grouping_status==='unvalidated' ? '<p class="note" role="status">קיבוץ הכתבות לא אומת. אין להסיק שזהו אירוע נפרד או שכיסויו מלא.</p>' : '';
+}
 function renderFeed() {
   const staleH = (Date.now() - new Date(DATA.generated_at).getTime()) / 36e5;
   const card = (s, i) => `
     <a class="card" href="#/story/${i}">
       <h2>${esc(s.headline)}</h2>
+      ${groupingWarning(s)}
       <div class="sum">${esc(s.summary)}</div>
       ${coverageHtml(s)}
     </a>`;
@@ -159,6 +165,7 @@ function renderFeed() {
 }
 
 function sideSummariesHtml(s) {
+  if(s.grouping_status==='unvalidated')return '<p class="note">לא מוצגים סיכומי צדדים או מסקנות על היעדר כיסוי עד להשלמת הקיבוץ.</p>';
   const ready = s.synthesis_status === 'ready' && s.synthesis;
   const intro = ready ? 'סיכומים אוטומטיים שנבדקו מול הטקסט שנאסף. גם בדיקה אוטומטית עלולה לטעות.' : 'הסיכום לפי צד אינו זמין כרגע. לא מוצג סיכום שלא עבר את הבדיקה.';
   return `<h3 class="sec">מה מדווחים לפי צד</h3><p class="note">${intro}</p>` + SIDE_ORDER.map(side => {
@@ -176,6 +183,7 @@ function renderDetail(i) {
   s.articles.forEach(a => (bySide[a.side] = bySide[a.side] || []).push(a));
   document.getElementById('detail').innerHTML = `
     <h2>${esc(s.headline)}</h2>
+      ${groupingWarning(s)}
     ${coverageHtml(s)}
     ${sideSummariesHtml(s)}
     <h3 class="sec">מקורות לעיון (לא חובה)</h3>
@@ -215,6 +223,10 @@ fetch('data.json').then(r => r.json()).then(d => {
     b.hidden = false;
     b.textContent = 'שים לב: ' + unmonitored.map(s => SIDE_HE[s]).join(', ') +
       ' אינם במעקב כרגע (מקורות לא מתויגים או תקלה). הפסים מחושבים רק על צדדים במעקב.';
+  }
+  if(d.grouping && !d.grouping.complete) {
+    const warning=document.getElementById('grouping-warning');warning.hidden=false;
+    warning.textContent='תצוגה חלקית: קיבוץ הכתבות לא הושלם. ייתכנו פיצולים או צירופים שגויים; אין להסיק מכאן היעדר כיסוי.';
   }
   renderFeed(); route();
 }).catch(() => { document.getElementById('meta').textContent = 'שגיאה בטעינת הנתונים'; });
