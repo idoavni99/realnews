@@ -80,12 +80,18 @@ footer.health .ok { color: #4a7d5d; } footer.health .bad { color: #b04a4a; }
 .grp.unlabeled { background: transparent; color: var(--ink2); border-color: var(--hairline); font-weight:400; }
 .chip.sub { font-weight: 400; }
 .cov-cap{font-size:12px;color:var(--ink2);margin-bottom:4px}
+.feed-tools{display:grid;gap:10px;margin-top:14px}.feed-tools label{display:block;font-size:12px;color:var(--ink2);margin-bottom:4px}.feed-tools input,.feed-tools select{font:inherit;font-size:16px;min-height:44px;width:100%;min-width:0;border:1px solid #cfc8ca;border-radius:10px;background:var(--card);color:var(--ink);padding:9px 12px}.tool-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}.reset{min-height:44px;padding:8px 14px;border:1px solid #cfc8ca;border-radius:10px;background:white;color:var(--ink);font:inherit;cursor:pointer}.results{font-size:13px;color:var(--ink2);margin-top:10px}.empty{padding:30px 12px;text-align:center;color:var(--ink2)}
+@media(min-width:600px){.feed-tools{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);align-items:end}}
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap" style="padding-bottom:0">
   <h1>הסיפור משני הצדדים</h1>
   <div class="meta" id="meta">טוען…</div>
+  <form class="feed-tools" id="feed-tools" role="search">
+    <div><label for="search">חיפוש בכתבות</label><input id="search" name="q" type="search" placeholder="כותרת, טקסט או מקור" autocomplete="off"></div>
+    <div class="tool-row"><div><label for="affiliation">שיוך המקורות</label><select id="affiliation" name="side"><option value="">כל השיוכים</option><option value="right">ימין</option><option value="center_right">מרכז־ימין</option><option value="center">מרכז</option><option value="center_left">מרכז־שמאל</option><option value="left">שמאל</option><option value="unknown">ללא תיוג</option></select></div><button class="reset" type="button" id="reset">ניקוי</button></div>
+  </form>
   <div class="banner" id="banner" hidden></div>
   <div class="banner" id="grouping-warning" role="alert" hidden></div>
 </div></header>
@@ -141,6 +147,25 @@ function coverageHtml(story) {
   return `<div class="cov">${half.length ? '<div class="cov-cap">כיסוי משוקלל (מרכז־שמאל ומרכז־ימין = חצי משקל)</div>' : ''}<div class="cov-bar">${segs}</div><div class="cov-legend">${legend}</div></div>`;
 }
 
+// Search is over the text actually available in the published digest, not external paywalled text.
+function readFilters() {
+  const params=new URLSearchParams(location.search), raw=params.get('side')||'';
+  return {q:params.get('q')||'',side:Object.hasOwn(SIDE_HE,raw)?raw:''};
+}
+function matchesStory(story,state) {
+  const normalize=text=>String(text||'').normalize('NFKC').toLocaleLowerCase('he').replace(/\s+/g,' ').trim();
+  const query=normalize(state.q),terms=query.split(' ').filter(Boolean);
+  // A joint search/filter must match the SAME article, not another source in the story.
+  return story.articles.some(article=> (!state.side||(article.side||'unknown')===state.side) &&
+    terms.every(term=>normalize([article.title,article.summary,article.source,article.fulltext||''].join(' ')).includes(term)));
+}
+function syncControls() {const state=readFilters();document.getElementById('search').value=state.q;document.getElementById('affiliation').value=state.side;}
+function updateFilters() {
+  const url=new URL(location.href),q=document.getElementById('search').value,side=document.getElementById('affiliation').value;
+  if(q.trim())url.searchParams.set('q',q);else url.searchParams.delete('q');
+  if(side)url.searchParams.set('side',side);else url.searchParams.delete('side');
+  history.replaceState(null,'',url);if(DATA)renderFeed();
+}
 function groupingWarning(s) {
   return s.grouping_status==='unvalidated' ? '<p class="note" role="status">קיבוץ הכתבות לא אומת. אין להסיק שזהו אירוע נפרד או שכיסויו מלא.</p>' : '';
 }
@@ -153,11 +178,10 @@ function renderFeed() {
       <div class="sum">${esc(s.summary)}</div>
       ${coverageHtml(s)}
     </a>`;
-  const bucket = {};
-  DATA.stories.forEach((s, i) => { const gs = storyGroups(s); (gs.length ? gs : ['unlabeled']).forEach(g => (bucket[g] = bucket[g] || []).push(card(s, i))); });
-  const titles = { right: 'ימין + מרכז־ימין', center: 'מרכז', left: 'שמאל + מרכז־שמאל', unlabeled: 'ללא תיוג צדדים' };
-  document.getElementById('feed').innerHTML = [...SIDE_ORDER, 'unlabeled'].filter(g => bucket[g]).map(g =>
-    `<h2 class="grp ${g}">${titles[g]}</h2>` + bucket[g].join('')).join('') +
+  const state=readFilters();
+  const visible=DATA.stories.map((story,index)=>({story,index})).filter(({story})=>matchesStory(story,state));
+  document.getElementById('feed').innerHTML = `<p class="results" role="status">${visible.length} מתוך ${DATA.stories.length} סיפורים</p>` +
+    (visible.length?visible.map(({story,index})=>card(story,index)).join(''):'<p class="empty">לא נמצאו סיפורים התואמים לחיפוש ולסינון.</p>') +
     `<footer class="health">מקורות: ${Object.entries(DATA.source_health).map(([id, h]) =>
       `<span class="${h.ok ? 'ok' : 'bad'}">${esc(h.name)}${h.ok ? '' : h.status === 'no_recent_items' ? ' (אין כתבות עדכניות בפיד)' : ' (תקלה)'}</span>`).join(' · ')}
     <br>עודכן: ${new Date(DATA.generated_at).toLocaleString('he-IL')} · חלון ${DATA.window_hours} שעות
@@ -232,10 +256,15 @@ fetch('data.json').then(r => r.json()).then(d => {
     const warning=document.getElementById('grouping-warning');warning.hidden=false;
     warning.textContent='תצוגה חלקית: קיבוץ הכתבות לא הושלם. ייתכנו פיצולים או צירופים שגויים; אין להסיק מכאן היעדר כיסוי.';
   }
-  renderFeed(); route();
+  syncControls(); renderFeed(); route();
 }).catch(() => { document.getElementById('meta').textContent = 'שגיאה בטעינת הנתונים'; });
 
 window.addEventListener('hashchange', route);
+window.addEventListener('popstate',()=>{syncControls();if(DATA){renderFeed();route();}});
+document.getElementById('feed-tools').addEventListener('submit',e=>{e.preventDefault();updateFilters();});
+document.getElementById('search').addEventListener('input',updateFilters);
+document.getElementById('affiliation').addEventListener('change',updateFilters);
+document.getElementById('reset').addEventListener('click',()=>{document.getElementById('search').value='';document.getElementById('affiliation').value='';updateFilters();});
 document.getElementById('back').addEventListener('click', closeDetail);
 </script>
 </body>
