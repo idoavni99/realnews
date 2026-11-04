@@ -14,6 +14,10 @@ on:
         description: Enable bounded free synthesis and verification
         type: boolean
         default: false
+      free_test:
+        description: Use openrouter/free for this staged test only (does not change provider default)
+        type: boolean
+        default: false
       grouping:
         description: Use model-led batched grouping (needs synthesis on; staged only unless publish)
         type: boolean
@@ -43,6 +47,7 @@ jobs:
         env:
           REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
           REALNEWS_GROUPING: ${{ inputs.grouping && 'model' || 'lexical' }}
+          OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || '' }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
       - name: Preserve staged output
