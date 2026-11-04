@@ -5,6 +5,23 @@ on:
     - cron: '0 9,21 * * *'
       timezone: 'Asia/Jerusalem'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish reviewed data to main
+        type: boolean
+        default: false
+      synthesis:
+        description: Enable bounded synthesis and verification (independent of grouping)
+        type: boolean
+        default: false
+      free_test:
+        description: Use openrouter/free for this staged test only (does not change provider default)
+        type: boolean
+        default: false
+      grouping:
+        description: Use model-led batched grouping independently (staged; quality gate required)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -12,7 +29,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,9 +37,40 @@ jobs:
           node-version: '22'
       - name: Tests
         run: npm test
+      - name: Restore synthesis cache
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: synthesis-v7-${{ github.run_id }}
+          restore-keys: synthesis-v7-
       - name: Run pipeline
+        env:
+          REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
+          REALNEWS_GROUPING: ${{ (inputs.grouping || (github.event_name == 'schedule' && vars.REALNEWS_GROUPING == 'model')) && 'model' || 'lexical' }}
+          OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || vars.OPENROUTER_MODEL || 'openrouter/auto' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
+      - name: Preserve staged output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staged-digest
+          path: .review/staged-data.json
+          retention-days: 3
+      - name: Private review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-review-evidence
+          path: .review/evidence.json
+          retention-days: 1
+      - name: Publication quality gate
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
+        env:
+          REALNEWS_AUTOPUBLISH_GROUPING: ${{ vars.REALNEWS_AUTOPUBLISH_GROUPING }}
+        run: node scripts/publication-gate.ts
       - name: Commit updated data
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
         run: |
           git config user.name "realnews-bot"
           git config user.email "realnews-bot@users.noreply.github.com"

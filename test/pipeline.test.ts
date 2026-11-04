@@ -28,7 +28,7 @@ test('normTokens strips Hebrew prefixes on long tokens', () => {
 
 test('clusterItems merges cross-source same-story titles', () => {
   const a = parseFeed(FEED, SRC)[0];
-  const b = { ...a, source: 'other', sourceName: 'Other', title: 'ראש הממשלה נפגש עם השר במשרדו', url: 'https://other.example/x' };
+  const b = { ...a, source: 'other', sourceName: 'Other', title: 'ראש הממשלה נפגש עם השר', url: 'https://other.example/x' };
   const clusters = clusterItems([a, b]);
   assert.equal(clusters.length, 1);
   assert.equal(clusters[0].items.length, 2);
@@ -48,7 +48,7 @@ test('real sources.yaml parses with valid neutral sides', () => {
   const cfg = loadConfig(new URL('..', import.meta.url).pathname);
   assert.ok(cfg.sources.length >= 5);
   for (const s of cfg.sources) {
-    assert.ok(['right', 'center', 'left', 'unknown'].includes(s.side));
+    assert.ok(['right', 'center_right', 'center', 'center_left', 'left', 'unknown'].includes(s.side));
     assert.ok(s.rss.startsWith('https://'));
   }
 });
@@ -99,4 +99,154 @@ test('i24 uses article metadata, deduplicates links and excludes unlinked flashe
  assert.equal(a[0].title, 'Article headline');
  assert.equal(a[0].summary, 'Article lead');
  assert.equal(a[0].published, article.publishedAt);
+});
+
+
+test('cluster URL dedup ignores tracking and fragments', () => {
+ const a = parseFeed(FEED, SRC)[0];
+ const b = {...a, url: a.url + '?utm_source=test#top'};
+ assert.equal(clusterItems([a,b])[0].items.length,1);
+});
+
+test('ambiguous near-match chain stays separate before synthesis', () => {
+ const a = {...parseFeed(FEED,SRC)[0],title:'אלפא בטא גמא דלתא',summary:''};
+ const b = {...a,url:'https://example.com/b',title:'אלפא בטא אפסילון זטא'};
+ const c = {...a,url:'https://example.com/c',title:'אפסילון זטא אתא תטא'};
+ const groups=clusterItems([a,b,c]);
+ assert.equal(groups.length,3);
+ assert.equal(groups[0].items.length,1);
+});
+
+import { validateSynthesis, synthesisInput } from '../src/synthesis.ts';
+test('synthesis rejects invented evidence and attribution to absent side', () => {
+ const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
+ const valid={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}}};
+ assert.doesNotThrow(()=>validateSynthesis(valid,items));
+ assert.throws(()=>validateSynthesis({...valid,sides:{...valid.sides,left:{summary:[{text:'Invented',article_ids:[99]}]}}},items));
+ assert.throws(()=>validateSynthesis({...valid,sides:{...valid.sides,right:{summary:[{text:'Wrong side',article_ids:[0]}]}}},items));
+ assert.equal(synthesisInput(items)[0].access,'lead_only');
+});
+
+
+import { readFileSync } from 'node:fs';
+test('real free-model duration hallucination is rejected, not published', () => {
+ const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
+ const current={sides:fixture.output.sides};
+ assert.throws(()=>validateSynthesis(current,fixture.input),/Unsupported number/);
+ // This is a narrow regression check, not proof of semantic accuracy.
+
+});
+test('side-only output rejects generated event/comparison fields', () => {
+ const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
+ const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},event:[]};
+ assert.throws(()=>validateSynthesis(value,items),/Unexpected synthesis field/);
+});
+
+import { validateVerdicts } from '../src/verification.ts';
+test('verifier requires one explicit verdict per candidate and reasons for rejection',()=>{
+ assert.throws(()=>validateVerdicts({verdicts:[]},['a']),/Incomplete/);
+ assert.throws(()=>validateVerdicts({verdicts:[{id:'a',supported:false,reasons:[]}]},['a']),/Invalid/);
+ assert.throws(()=>validateVerdicts({verdicts:[{id:'a',supported:true,reasons:[]},{id:'a',supported:true,reasons:[]}]},['a','b']),/Incomplete/);
+ assert.equal(validateVerdicts({verdicts:[{id:'a',supported:false,reasons:['Reversed negation']}]},['a'])[0].supported,false);
+});
+
+import { numberClaims } from '../src/synthesis.ts';
+test('quantity normalization accepts Hebrew digit paraphrase but not changed quantities',()=>{
+ assert.deepEqual(numberClaims('כתשע שנים בשתי קדנציות'),new Set(['9','2']));
+ assert.deepEqual(numberClaims('כ-9 שנים בשתי קדנציות'),new Set(['9','2']));
+ assert.ok(!numberClaims('19 שנים').has('9'));
+ assert.ok(numberClaims('לאחר כשעתיים').has('duration:2hours'));
+ const fixture=JSON.parse(readFileSync(new URL('./fixtures/rejected-duration.json',import.meta.url),'utf8'));
+ const value={sides:{left:{summary:[{text:'כ-9 שנים בשתי קדנציות',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}}};
+ assert.doesNotThrow(()=>validateSynthesis(value,fixture.input));
+ value.sides.left.summary[0].text='כ-5 שנים';
+ assert.throws(()=>validateSynthesis(value,fixture.input),/Unsupported number/);
+ value.sides.left.summary[0].text='לאחר כשעתיים';
+ assert.throws(()=>validateSynthesis(value,fixture.input),/Unsupported number/);
+});
+
+import { accessCaveats } from '../src/synthesis.ts';
+test('access caveats are deterministic metadata, not generated prose',()=>{
+ const a=parseFeed(FEED,SRC)[0];
+ assert.deepEqual(accessCaveats([{...a,extraction:'lead_only'}]),['חלק מהמידע מבוסס על פתיחי כתבות בלבד.']);
+ assert.deepEqual(accessCaveats([{...a,extraction:'full'}]),[]);
+ const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}},caveats:['הדיווח הוא בגדר מזלג']};
+ assert.throws(()=>validateSynthesis(value,[a]),/Unexpected synthesis field/);
+});
+
+import { synthesizeStory } from '../src/synthesis.ts';
+import { verifyCandidates } from '../src/verification.ts';
+test('final sides-only model and verifier contract accepts evidence and fails closed',async()=>{
+ const original=globalThis.fetch;
+ const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
+ const value={sides:{left:{summary:[{text:'ראש הממשלה נפגש עם השר',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}}};
+ const reply=(v:unknown)=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(v)}}]}));
+ try {
+  globalThis.fetch=async(_url,init)=>{
+   const body=JSON.parse(String(init?.body));
+   assert.equal(body.model,'openrouter/auto');
+   assert.deepEqual(body.response_format.json_schema.schema.required,['sides']);
+   assert.equal(body.response_format.json_schema.schema.type,'object');
+   return reply(value);
+  };
+  assert.deepEqual(await synthesizeStory(items,'test-not-a-key'),value);
+  globalThis.fetch=async()=>reply({verdicts:[{id:'summary',supported:false,reasons:['Unsupported attribution']}]});
+  assert.equal((await verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'))[0].supported,false);
+  globalThis.fetch=async()=>reply({verdicts:[]});
+  await assert.rejects(()=>verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'),/Incomplete/);
+  globalThis.fetch=async()=>new Response('{}',{status:429});
+  await assert.rejects(()=>verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'),/HTTP 429/);
+ }finally{globalThis.fetch=original;}
+});
+
+test('distinct traffic accidents from the same outlet do not share a story',()=>{
+ const a={...parseFeed(FEED,SRC)[0],title:'שבעה פצועים בתאונת דרכים בדימונה ביניהם אישה במצב קשה',summary:'',url:'https://example.com/dimona'};
+ const b={...a,title:'שלושה פצועים בתאונת דרכים סמוך לגניגר אחד במצב קשה',url:'https://example.com/ginegar'};
+ assert.equal(clusterItems([a,b]).length,2);
+});
+
+test('same generic accident wording across outlets with different locations stays separate',()=>{
+ const a={...parseFeed(FEED,SRC)[0],title:'תאונת דרכים בדימונה שבעה פצועים',summary:'',url:'https://example.com/d'};
+ const b={...a,source:'other',title:'תאונת דרכים בגניגר שלושה פצועים',url:'https://other.example/g'};
+ assert.equal(clusterItems([a,b]).length,2);
+});
+
+import { weightedCoverage, groupOf } from '../src/config.ts';
+test('weighted coverage: half weights go to the side and to center; counts stay actual', () => {
+  const c = weightedCoverage({ left: 2, center_left: 2, center: 1, center_right: 1, right: 1 });
+  assert.deepEqual(c, { left: 3, center: 2.5, right: 1.5, denominator: 7 });
+  assert.equal(c.left + c.center + c.right, c.denominator);
+  // 7 weighted points from 7 articles: weights sum to article count
+});
+test('weighted coverage ignores unknown and absent labels', () => {
+  assert.deepEqual(weightedCoverage({ unknown: 3, bogus: 2 }), { left: 0, center: 0, right: 0, denominator: 0 });
+  assert.deepEqual(weightedCoverage({}), { left: 0, center: 0, right: 0, denominator: 0 });
+  assert.deepEqual(weightedCoverage({ center_right: 1 }), { left: 0, center: 0.5, right: 0.5, denominator: 1 });
+});
+test('center_left/center_right are valid owner labels and group by raw label', () => {
+  assert.equal(normalizeSide('center_left'), 'center_left');
+  assert.equal(normalizeSide('center-left'), 'center_left');
+  assert.equal(normalizeSide('center-right'), 'center_right');
+  assert.equal(normalizeSide(' Center_Left '), 'center_left');
+  assert.equal(normalizeSide('centre-left'), 'unknown');
+  assert.equal(normalizeSide('center-'), 'unknown');
+  assert.equal(groupOf('center_left'), 'left');
+  assert.equal(groupOf('center_right'), 'right');
+  assert.equal(groupOf('center'), 'center');
+  assert.equal(groupOf('unknown'), null);
+});
+test('synthesis attribution accepts center_left articles under the left group only', () => {
+  const mk = (side: string, t: string) => ({ source: 's', sourceName: 's', side, title: t, url: 'u', summary: t, published: '' }) as any;
+  const items = [mk('left', 'א'), mk('center_left', 'ב'), mk('right', 'ג')];
+  const ok = { sides: { left: { summary: [{ text: 'ב', article_ids: [0, 1] }] }, center: { summary: [] }, right: { summary: [] } } };
+  assert.doesNotThrow(() => validateSynthesis(ok, items));
+  const bad = { sides: { left: { summary: [] }, center: { summary: [{ text: 'ב', article_ids: [1] }] }, right: { summary: [] } } };
+  assert.throws(() => validateSynthesis(bad, items));
+  assert.equal(synthesisInput(items)[1].side, 'left');
+});
+
+test('owner sources.yaml hyphen tags load as supported categories', () => {
+  const cfg = loadConfig(process.cwd());
+  assert.ok(cfg.sources.length > 0);
+  assert.ok(cfg.sources.every(x => x.side !== 'unknown'), 'no owner-tagged source should load as unknown: ' + cfg.sources.filter(x => x.side === 'unknown').map(x => x.id));
 });

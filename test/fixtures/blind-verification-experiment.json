@@ -1,0 +1,440 @@
+{
+  "model": "openrouter/auto",
+  "scope": "One blind verification call, no generation. Real archived public leads; all candidate summaries are synthetic controls or reconstructed prior failures.",
+  "cases": [
+    {
+      "label": "rumor-promoted-to-fact",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": []
+          },
+          "center": {
+            "summary": [
+              {
+                "text": "בפאתי קייב נחשף מתקן שבו מוחזקים עשרות מגויסים.",
+                "article_ids": [
+                  2
+                ]
+              }
+            ]
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "323e1ad9-249c-4124-85c8-86af022d3102"
+    },
+    {
+      "label": "prior-two-hour-error",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": [
+              {
+                "text": "בר סימן טוב הודיע על סיום תפקידו לאחר כשעתיים מצטברות בשתי קדנציות של כ-9 שנים.",
+                "article_ids": [
+                  0
+                ]
+              }
+            ]
+          },
+          "center": {
+            "summary": []
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "f0dad6f0-2be6-4e1d-9fe6-57684a1a99d7"
+    },
+    {
+      "label": "valid-right-attribution",
+      "expected": true,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": []
+          },
+          "center": {
+            "summary": []
+          },
+          "right": {
+            "summary": [
+              {
+                "text": "בר סימן טוב הודיע לשר חיים כץ על פרישתו אחרי כתשע שנים במצטבר בשתי קדנציות.",
+                "article_ids": [
+                  1
+                ]
+              }
+            ]
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "38c1f7af-716c-4546-b327-de9e2f885541"
+    },
+    {
+      "label": "prior-garbled-duration",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": [
+              {
+                "text": "בר סימן טוב עוזב לאחר כשעש שנים במצטבר בשתי קדנציות.",
+                "article_ids": [
+                  0
+                ]
+              }
+            ]
+          },
+          "center": {
+            "summary": []
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "4ed1cba0-9bd4-422e-9e35-f626d8a5e15e"
+    },
+    {
+      "label": "valid-digit-paraphrase",
+      "expected": true,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": [
+              {
+                "text": "משה בר סימן טוב עוזב את תפקידו לאחר כ-9 שנים בשתי קדנציות וצפוי להיות עמית מחקר באוניברסיטת קולומביה בניו יורק.",
+                "article_ids": [
+                  0
+                ]
+              }
+            ]
+          },
+          "center": {
+            "summary": []
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "f31e561d-b610-4ad6-9443-44d4e4bcc6a9"
+    },
+    {
+      "label": "reversed-denial",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": []
+          },
+          "center": {
+            "summary": [
+              {
+                "text": "המשטרה אישרה שנחשף חדר עינויים בפאתי קייב.",
+                "article_ids": [
+                  2
+                ]
+              }
+            ]
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "628d02c8-358e-4e52-95e9-db4b986c6448"
+    },
+    {
+      "label": "invented-death-attribution",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": []
+          },
+          "center": {
+            "summary": [
+              {
+                "text": "זלנסקי אישר שארבעה חיילים נהרגו בחדר עינויים.",
+                "article_ids": [
+                  2
+                ]
+              }
+            ]
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "63eeb2a9-516b-4c16-907e-1cac984c0797"
+    },
+    {
+      "label": "prior-five-year-error",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": [
+              {
+                "text": "בר סימן טוב עוזב לאחר כחמש שנים במצטבר בשתי קדנציות.",
+                "article_ids": [
+                  0
+                ]
+              }
+            ]
+          },
+          "center": {
+            "summary": []
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "be156347-d5fa-4a17-a508-f1273ae1e5f7"
+    },
+    {
+      "label": "cross-source-attribution",
+      "expected": false,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": [
+              {
+                "text": "לפי הארץ, בר סימן טוב הודיע לשר חיים כץ על פרישתו.",
+                "article_ids": [
+                  0
+                ]
+              }
+            ]
+          },
+          "center": {
+            "summary": []
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "45b2e9ea-002d-49c1-8bdd-58467b229276"
+    },
+    {
+      "label": "valid-denial",
+      "expected": true,
+      "summary": {
+        "sides": {
+          "left": {
+            "summary": []
+          },
+          "center": {
+            "summary": [
+              {
+                "text": "המשטרה מכחישה שנחשף חדר עינויים; ארבעה חיילים נפצעו ונפתחה חקירה פלילית.",
+                "article_ids": [
+                  2
+                ]
+              }
+            ]
+          },
+          "right": {
+            "summary": []
+          }
+        },
+        "caveats": [
+          "פתיח בלבד."
+        ]
+      },
+      "id": "8c7e708b-a200-46f1-b676-80c012c249fd"
+    }
+  ],
+  "verdicts": [
+    {
+      "id": "323e1ad9-249c-4124-85c8-86af022d3102",
+      "supported": false,
+      "reasons": [
+        "The article states that these were rumors and that the police deny a torture room was uncovered."
+      ]
+    },
+    {
+      "id": "f0dad6f0-2be6-4e1d-9fe6-57684a1a99d7",
+      "supported": false,
+      "reasons": [
+        "The text says about nine years, not about two hours."
+      ]
+    },
+    {
+      "id": "38c1f7af-716c-4546-b327-de9e2f885541",
+      "supported": true,
+      "reasons": [
+        "The summary accurately reflects the text from article 1."
+      ]
+    },
+    {
+      "id": "4ed1cba0-9bd4-422e-9e35-f626d8a5e15e",
+      "supported": false,
+      "reasons": [
+        "Typo in summary 'כשעש שנים' instead of about nine years."
+      ]
+    },
+    {
+      "id": "f31e561d-b610-4ad6-9443-44d4e4bcc6a9",
+      "supported": true,
+      "reasons": [
+        "The summary is fully supported by the text in article 0."
+      ]
+    },
+    {
+      "id": "628d02c8-358e-4e52-95e9-db4b986c6448",
+      "supported": false,
+      "reasons": [
+        "Reversed negation: the article explicitly states that the police deny a torture room was uncovered."
+      ]
+    },
+    {
+      "id": "63eeb2a9-516b-4c16-907e-1cac984c0797",
+      "supported": false,
+      "reasons": [
+        "Unsupported facts and changed quantities: the article mentions injured soldiers, not killed ones, and does not mention Zelensky approving this."
+      ]
+    },
+    {
+      "id": "be156347-d5fa-4a17-a508-f1273ae1e5f7",
+      "supported": false,
+      "reasons": [
+        "Changed quantities: the text states about nine years, not five."
+      ]
+    },
+    {
+      "id": "45b2e9ea-002d-49c1-8bdd-58467b229276",
+      "supported": false,
+      "reasons": [
+        "Wrong source attribution: mentioning Minister Haim Katz appears in the i24NEWS article, not in Haaretz (article 0)."
+      ]
+    },
+    {
+      "id": "8c7e708b-a200-46f1-b676-80c012c249fd",
+      "supported": true,
+      "reasons": [
+        "The summary is fully supported by the evidence in article 2."
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "label": "rumor-promoted-to-fact",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "The article states that these were rumors and that the police deny a torture room was uncovered."
+      ]
+    },
+    {
+      "label": "prior-two-hour-error",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "The text says about nine years, not about two hours."
+      ]
+    },
+    {
+      "label": "valid-right-attribution",
+      "expected": true,
+      "actual": true,
+      "reasons": [
+        "The summary accurately reflects the text from article 1."
+      ]
+    },
+    {
+      "label": "prior-garbled-duration",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "Typo in summary 'כשעש שנים' instead of about nine years."
+      ]
+    },
+    {
+      "label": "valid-digit-paraphrase",
+      "expected": true,
+      "actual": true,
+      "reasons": [
+        "The summary is fully supported by the text in article 0."
+      ]
+    },
+    {
+      "label": "reversed-denial",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "Reversed negation: the article explicitly states that the police deny a torture room was uncovered."
+      ]
+    },
+    {
+      "label": "invented-death-attribution",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "Unsupported facts and changed quantities: the article mentions injured soldiers, not killed ones, and does not mention Zelensky approving this."
+      ]
+    },
+    {
+      "label": "prior-five-year-error",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "Changed quantities: the text states about nine years, not five."
+      ]
+    },
+    {
+      "label": "cross-source-attribution",
+      "expected": false,
+      "actual": false,
+      "reasons": [
+        "Wrong source attribution: mentioning Minister Haim Katz appears in the i24NEWS article, not in Haaretz (article 0)."
+      ]
+    },
+    {
+      "label": "valid-denial",
+      "expected": true,
+      "actual": true,
+      "reasons": [
+        "The summary is fully supported by the evidence in article 2."
+      ]
+    }
+  ]
+}

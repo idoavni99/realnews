@@ -7,15 +7,15 @@
 sources:
   - id: ynet
     name: Ynet
-    side: center
+    side: center-left
     rss: https://www.ynet.co.il/Integration/StoryRss2.xml
   - id: walla
     name: Walla
-    side: center
+    side: center-right
     rss: https://rss.walla.co.il/feed/1?type=main
   - id: mako
     name: Mako
-    side: center
+    side: center-left
     rss: https://www.mako.co.il/RSS/31750a2610f26110VgnVCM1000005201000aRCRD.xml
   - id: maariv
     name: Maariv
@@ -44,5 +44,9 @@ sources:
     rss: https://api.i24news.tv/v2/he/news
     format: i24_json
     extraction: rss_only
+  - id: kikar_shabbat
+    name: כיכר השבת
+    side: right
+    rss: https://a.kikar.co.il/v1/rss/articles/latest/rss2
 window_hours: 24
 max_articles_per_source: 15
