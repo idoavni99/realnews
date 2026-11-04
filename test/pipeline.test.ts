@@ -48,7 +48,7 @@ test('real sources.yaml parses with valid neutral sides', () => {
   const cfg = loadConfig(new URL('..', import.meta.url).pathname);
   assert.ok(cfg.sources.length >= 5);
   for (const s of cfg.sources) {
-    assert.ok(['right', 'center', 'left', 'unknown'].includes(s.side));
+    assert.ok(['right', 'center_right', 'center', 'center_left', 'left', 'unknown'].includes(s.side));
     assert.ok(s.rss.startsWith('https://'));
   }
 });
@@ -225,7 +225,11 @@ test('weighted coverage ignores unknown and absent labels', () => {
 });
 test('center_left/center_right are valid owner labels and group by raw label', () => {
   assert.equal(normalizeSide('center_left'), 'center_left');
-  assert.equal(normalizeSide('center-left'), 'unknown');
+  assert.equal(normalizeSide('center-left'), 'center_left');
+  assert.equal(normalizeSide('center-right'), 'center_right');
+  assert.equal(normalizeSide(' Center_Left '), 'center_left');
+  assert.equal(normalizeSide('centre-left'), 'unknown');
+  assert.equal(normalizeSide('center-'), 'unknown');
   assert.equal(groupOf('center_left'), 'left');
   assert.equal(groupOf('center_right'), 'right');
   assert.equal(groupOf('center'), 'center');
@@ -239,4 +243,10 @@ test('synthesis attribution accepts center_left articles under the left group on
   const bad = { sides: { left: { summary: [] }, center: { summary: [{ text: 'ב', article_ids: [1] }] }, right: { summary: [] } } };
   assert.throws(() => validateSynthesis(bad, items));
   assert.equal(synthesisInput(items)[1].side, 'left');
+});
+
+test('owner sources.yaml hyphen tags load as supported categories', () => {
+  const cfg = loadConfig(process.cwd());
+  assert.ok(cfg.sources.length > 0);
+  assert.ok(cfg.sources.every(x => x.side !== 'unknown'), 'no owner-tagged source should load as unknown: ' + cfg.sources.filter(x => x.side === 'unknown').map(x => x.id));
 });

@@ -44,7 +44,9 @@ export function weightedCoverage(counts: Record<string, number>): { left: number
 }
 /** Owner-typo guard: an unrecognized side is treated as unknown (never as a new side). */
 export function normalizeSide(s: string): Source['side'] {
-  return (VALID_SIDES.has(s) ? s : 'unknown') as Source['side'];
+  // Owner tags may be written center-left / center-right; accept that spelling as the same category.
+  const k = String(s).trim().toLowerCase().replace(/-/g, '_');
+  return (VALID_SIDES.has(k) ? k : 'unknown') as Source['side'];
 }
 
 /** Minimal parser for our flat sources.yaml shape - no external deps. */
