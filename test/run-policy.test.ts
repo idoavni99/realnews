@@ -18,3 +18,9 @@ test('publication fails closed on incomplete membership, failed summaries and un
  publicationGate(data,approval);
  assert.throws(()=>publicationGate({...data,generated_at:'changed'},approval),/missing exact-data/);
 });
+
+
+test('explicit unattended grouping opt-in never approves summaries or incomplete membership',()=>{
+ publicationGate({grouping:{complete:true},stories:[{synthesis_status:'not_configured'}]},undefined,true);
+ for(const data of [{grouping:{complete:false},stories:[]},{grouping:{complete:true},stories:[{grouping_status:'unvalidated'}]},{grouping:{complete:true},stories:[{synthesis_status:'ready'}]}])assert.throws(()=>publicationGate(data,undefined,true),/Publication blocked/);
+});

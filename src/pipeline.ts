@@ -174,7 +174,10 @@ async function main() {
     ...(grouping?{grouping:{mode:'model',complete:grouping.complete,unvalidated_articles:grouping.unvalidated_articles}}:{}),
     stories: stories.slice(0, 30),
   };
-  writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,calls:callAudit,accounting:{attempts:callAudit.length,usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'},stories:review},null,2));
+  const reportedCost=callAudit.reduce((sum:number,a:any)=>sum+(typeof a.usage?.cost==='number'?a.usage.cost:0),0);
+  const missingCost=callAudit.filter((a:any)=>typeof a.usage?.cost!=='number').length;
+  console.error(`model accounting: attempts=${callAudit.length}, reported cost USD=${reportedCost.toFixed(8)}, missing cost records=${missingCost}; missing records are NOT zero cost`);
+  writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,calls:callAudit,accounting:{attempts:callAudit.length,reported_cost_usd:reportedCost,cost_records_missing:missingCost,usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'},stories:review},null,2));
   writeFileSync(join(reviewDir,'staged-data.json'),JSON.stringify(out,null,2));
   if(grouping&&!grouping.complete)throw new Error('Incomplete grouping: staged data/evidence preserved; primary output unchanged');
   writeFileSync(cachePath,JSON.stringify(nextCache));

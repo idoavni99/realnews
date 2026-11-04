@@ -224,6 +224,10 @@ fetch('data.json').then(r => r.json()).then(d => {
     b.textContent = 'שים לב: ' + unmonitored.map(s => SIDE_HE[s]).join(', ') +
       ' אינם במעקב כרגע (מקורות לא מתויגים או תקלה). הפסים מחושבים רק על צדדים במעקב.';
   }
+  if(d.grouping && d.grouping.complete) {
+    const warning=document.getElementById('grouping-warning');warning.hidden=false;
+    warning.textContent='הכתבות קובצו אוטומטית לפי אירוע. ייתכנו צירופים או פיצולים שגויים.';
+  }
   if(d.grouping && !d.grouping.complete) {
     const warning=document.getElementById('grouping-warning');warning.hidden=false;
     warning.textContent='תצוגה חלקית: קיבוץ הכתבות לא הושלם. ייתכנו פיצולים או צירופים שגויים; אין להסיק מכאן היעדר כיסוי.';

@@ -90,3 +90,21 @@ order within outlets and outlet encounter order in rounds. Continue the same
 round-robin across batch boundaries, without guessed dates or hash/epoch sorting.
 If all dates are known, chronological outlet queues and time-ordered heads apply.
 Checkpoint compaction remains independently governed by the context budget.
+
+
+## Authorized scheduled grouping rollout
+
+Owner requested recurring auto grouping using the existing Actions key after
+being told the observed sample price is not a full-feed price. Do not replace
+that secret, change billing/top-ups, or enable generated summaries. Actions repo
+variables `REALNEWS_GROUPING=model`, `OPENROUTER_MODEL=openrouter/auto`, and
+`REALNEWS_AUTOPUBLISH_GROUPING=true` opt scheduled runs into this mode. Summary
+flag stays false. Model grouping still obeys the per-run call cap and fails closed
+if unavailable/incomplete; old site data stays unchanged. No numerical lifetime
+cap is inferred for the owner's separate Actions key.
+
+The publication gate accepts complete grouping-only data under that explicit
+opt-in, without a human approval file for each digest. This is technical contract
+validation, not independent event verification. The site labels automatic grouping
+as fallible. Generated summaries still require exact-data quality approval; the
+opt-in cannot bypass incomplete membership, failed summaries or unvalidated groups.
