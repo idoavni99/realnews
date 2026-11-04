@@ -76,3 +76,13 @@ It is not a semantic matching solution. No further model calls after this findin
 Private .review evidence snapshots capture exact capped model evidence and draft/
 verdict/error, upload only as1day artifact in the private repo staging run, never
 site content. This capture code has not been exercised in a new staged run yet.
+
+Generation-free grouping evaluation:11 manually labeled archived pairs,4same-event
+and7distinct-event. Exact-headline baseline:TP0 FP0 FN4 TN7, recall0/4 (0%),
+precision undefined because it predicts no merges. Lost true matches include
+אינו/לא in the chief-of-staff headline, alternate phrasing of AG response,
+Hummer recovery and Health Ministry resignation. This baseline is NOT an
+acceptable replacement for cross-source event grouping and will not be shipped.
+No further inference/retry. Next product blocker is semantic same-event gating
+before synthesis, evaluated on both true paraphrases and similar distinct events;
+model availability remains an independent blocker. Main unchanged.

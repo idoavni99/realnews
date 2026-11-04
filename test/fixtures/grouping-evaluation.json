@@ -1,0 +1,237 @@
+[
+  {
+    "id": "chief-of-staff meeting",
+    "expected_same": true,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "הרמטכ\"ל לתלמידי ישיבת ההסדר החרדית: \"צה\"ל אינו מבקש לשנות את זהותכם\"",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384527",
+      "extraction": "full",
+      "summary": ""
+    },
+    "b": {
+      "source": "סרוגים",
+      "side": "right",
+      "title": "הרמטכ\"ל לתלמידי ישיבת ההסדר החרדית: \"צה\"ל לא מבקש לשנות את זהותכם\"",
+      "url": "https://www.srugim.co.il/101015227-הרמטכל-לתלמידי-ישיבת-ההסדר-החרדית-צהל-לא",
+      "extraction": "full",
+      "summary": "הרמטכ\"ל אייל זמיר נפגש עם תלמידי ישיבת ההסדר החרדית בגן יבנה והבהיר כי \"צה\"ל אינו מבקש לשנות את זהותכם. מטרתנו היא שתיכנסו לצבא חרדים ותצאו חרדים, זו מחויבות שלנו כצבא ושלי באופן אישי\""
+    },
+    "basis": "Both source titles and collected leads identify same named subject/action. Full original capped evidence absent from first staged artifact."
+  },
+  {
+    "id": "AG response",
+    "expected_same": true,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "היועמ\"שית מגיבה למתקפה של הליכוד: \"כל מי שצריך להיחקר - ייחקר\"",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384518",
+      "extraction": "partial",
+      "summary": ""
+    },
+    "b": {
+      "source": "סרוגים",
+      "side": "right",
+      "title": "היועמ\"שית מגיבה בחריפות לליכוד: \"כל מי שצריך להיחקר - ייחקר\"",
+      "url": "https://www.srugim.co.il/101015222-היועמשית-מגיבה-בחריפות-לליכוד-כל-מי",
+      "extraction": "full",
+      "summary": "היועצת המשפטית לממשלה דוחה את הטענות לעיכוב חקירת ההתערבות הזרה בבחירות ומודיעה על הקמת צוות חקירה משותף לשב\"כ ולמשטרה. בליכוד מאשימים בניסיונות טיוח"
+    },
+    "basis": "Both source titles and collected leads identify same named subject/action. Full original capped evidence absent from first staged artifact."
+  },
+  {
+    "id": "stolen military Hummer",
+    "expected_same": true,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "שבוע לאחר שנגנב מבסיס ג'וליס: ההאמר הצבאי אותר בבית אריזה בעוטף עזה",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384506",
+      "extraction": "partial",
+      "summary": ""
+    },
+    "b": {
+      "source": "סרוגים",
+      "side": "right",
+      "title": "ההאמר הצה\"לי שנגנב מבסיס בדרום אותר כשהוא מוסלק בבית אריזה",
+      "url": "https://www.srugim.co.il/101015217-ההאמר-הצהלי-שנגנב-מבסיס-בדרום-אותר-כשהוא",
+      "extraction": "full",
+      "summary": "המשטרה איתרה האמר צה\"לי שעל פי החשד נגנב מבסיס צה״ל בדרום הארץ, כשהוא מוסלק בבית אריזה ביישוב עמי עוז"
+    },
+    "basis": "Both source titles and collected leads identify same named subject/action. Full original capped evidence absent from first staged artifact."
+  },
+  {
+    "id": "health-ministry-resignation",
+    "expected_same": true,
+    "a": {
+      "source": "הארץ",
+      "side": "left",
+      "title": "מנכ\"ל משרד הבריאות משה בר סימן טוב הודיע כי הוא עוזב את תפקידו",
+      "url": "https://www.haaretz.co.il/health/2026-11-03/ty-article/000001a1-a118-db9a-a1b3-b93a6d380000",
+      "extraction": "lead_only",
+      "summary": "בר סימן טוב כיהן בתפקיד כתשע שנים במצטבר בשתי קדנציות, בין היתר במהלך מגפת הקורונה. הוא צפוי להצטרף בחודשים הקרובים כעמית מחקר באוניברסיטת קולומביה בניו יורק",
+      "sourceName": "הארץ",
+      "published": "2026-11-03T15:22:02.211Z"
+    },
+    "b": {
+      "source": "i24NEWS",
+      "side": "right",
+      "title": "משה בר סימן טוב הודיע על סיום תפקידו כמנכ\"ל משרד הבריאות",
+      "url": "https://www.i24news.tv/he/news/news/health/artc-818043fe",
+      "extraction": "lead_only",
+      "summary": "אחרי כתשע שנים במצטבר בשתי קדנציות, בר סימן טוב הודיע לשר חיים כץ על פרישתו • צפוי להצטרף בחודשים הקרובים כעמית מחקר באוניברסיטת קולומביה בניו יורק",
+      "sourceName": "i24NEWS",
+      "published": "2026-11-03T15:22:02.211Z"
+    },
+    "basis": "Both archived leads describe Bar Siman Tov resignation, nine years, Columbia research fellowship."
+  },
+  {
+    "id": "distinct-accidents",
+    "expected_same": false,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "שבעה פצועים בתאונת דרכים בדימונה - בניהם אישה במצב קשה",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384512",
+      "extraction": "full",
+      "summary": ""
+    },
+    "b": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "שלושה פצועים בתאונת דרכים סמוך לגניגר - אחד במצב קשה",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384503",
+      "extraction": "full",
+      "summary": ""
+    },
+    "basis": "Different named places Dimona/Ginegar and seven/three injured."
+  },
+  {
+    "id": "distinct-0-1",
+    "expected_same": false,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "הרמטכ\"ל לתלמידי ישיבת ההסדר החרדית: \"צה\"ל אינו מבקש לשנות את זהותכם\"",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384527",
+      "extraction": "full",
+      "summary": ""
+    },
+    "b": {
+      "source": "סרוגים",
+      "side": "right",
+      "title": "היועמ\"שית מגיבה בחריפות לליכוד: \"כל מי שצריך להיחקר - ייחקר\"",
+      "url": "https://www.srugim.co.il/101015222-היועמשית-מגיבה-בחריפות-לליכוד-כל-מי",
+      "extraction": "full",
+      "summary": "היועצת המשפטית לממשלה דוחה את הטענות לעיכוב חקירת ההתערבות הזרה בבחירות ומודיעה על הקמת צוות חקירה משותף לשב\"כ ולמשטרה. בליכוד מאשימים בניסיונות טיוח"
+    },
+    "basis": "Different subject/action in actual archived titles and leads."
+  },
+  {
+    "id": "distinct-0-3",
+    "expected_same": false,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "הרמטכ\"ל לתלמידי ישיבת ההסדר החרדית: \"צה\"ל אינו מבקש לשנות את זהותכם\"",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384527",
+      "extraction": "full",
+      "summary": ""
+    },
+    "b": {
+      "source": "סרוגים",
+      "side": "right",
+      "title": "ההאמר הצה\"לי שנגנב מבסיס בדרום אותר כשהוא מוסלק בבית אריזה",
+      "url": "https://www.srugim.co.il/101015217-ההאמר-הצהלי-שנגנב-מבסיס-בדרום-אותר-כשהוא",
+      "extraction": "full",
+      "summary": "המשטרה איתרה האמר צה\"לי שעל פי החשד נגנב מבסיס צה״ל בדרום הארץ, כשהוא מוסלק בבית אריזה ביישוב עמי עוז"
+    },
+    "basis": "Different subject/action in actual archived titles and leads."
+  },
+  {
+    "id": "distinct-1-3",
+    "expected_same": false,
+    "a": {
+      "source": "Maariv",
+      "side": "center",
+      "title": "היועמ\"שית מגיבה למתקפה של הליכוד: \"כל מי שצריך להיחקר - ייחקר\"",
+      "url": "https://www.maariv.co.il/breaking-news/article-1384518",
+      "extraction": "partial",
+      "summary": ""
+    },
+    "b": {
+      "source": "סרוגים",
+      "side": "right",
+      "title": "ההאמר הצה\"לי שנגנב מבסיס בדרום אותר כשהוא מוסלק בבית אריזה",
+      "url": "https://www.srugim.co.il/101015217-ההאמר-הצהלי-שנגנב-מבסיס-בדרום-אותר-כשהוא",
+      "extraction": "full",
+      "summary": "המשטרה איתרה האמר צה\"לי שעל פי החשד נגנב מבסיס צה״ל בדרום הארץ, כשהוא מוסלק בבית אריזה ביישוב עמי עוז"
+    },
+    "basis": "Different subject/action in actual archived titles and leads."
+  },
+  {
+    "id": "old-distinct-5-12",
+    "expected_same": false,
+    "a": {
+      "source": "Ynet",
+      "side": "center",
+      "title": "נהג שיכור במלגזה - ודרס למוות את חברו | תיעוד",
+      "url": "https://www.ynet.co.il/news/article/r1ntzsd6ml",
+      "extraction": "full",
+      "summary": "אזרח סרי לנקה נאשם בהמתה בקלות דעת של עובד אחר במפעל בגליל התחתון, גם הוא סרי לנקי. הוא נהג ללא רישיון ומחוץ לשעות העבודה, והמשיך בנסיעה בעוד הנוכחים במקום קוראים לו לעצור. עורך דינו טען: \"הוא לא התכוון לפגוע, הם היו חברים קרובים\""
+    },
+    "b": {
+      "source": "Ynet",
+      "side": "center",
+      "title": "נאשם שתקף אישה ברחוב - ודרס שכנה שצילמה | תיעוד",
+      "url": "https://www.ynet.co.il/news/article/b1dtpgd6zl",
+      "extraction": "full",
+      "summary": "צעיר מנוף הגליל נאשם שתקף באגרופים אישה במהלך קטטה בין כ-15 דיירים בשכונה - שאליה הגיע לבקר קרובי משפחה - ודרס שכנה שתיעדה את המתרחש. הנאשם, חזאם סוטרי, נמלט מהזירה ונעצר כשהגיע לתחנת המשטרה כדי להתלונן בעצמו על תקיפה - אך על אף טענותיו, רק הוא יואשם"
+    },
+    "basis": "Different events or separate opinion pieces; no same-event evidence supplied."
+  },
+  {
+    "id": "old-distinct-3-13",
+    "expected_same": false,
+    "a": {
+      "source": "Ynet",
+      "side": "center",
+      "title": "טראמפ: סיכמתי עם נתניהו שהסיוע לישראל יופסק בתום השנה הנוכחית",
+      "url": "https://www.ynet.co.il/news/article/rkctlwvpzl",
+      "extraction": "full",
+      "summary": "לדברי נשיא ארה\"ב, רה\"מ הוא שפנה אליו - והשניים סיכמו לפני כמה חודשים שהסיוע בסך 4 מיליארד דולר בשנה לא יועבר יותר כי ישראל \"לא צריכה\" אותו. \"נסייע לישראל אם היא תזדקק לכך, היא בת ברית נהדרת\", הוסיף. ההסכם הנוכחי אמור היה לפקוע ב-2028, ובמשרד האוצר הופתעו מהדברים. טראמפ לא מדייק?"
+    },
+    "b": {
+      "source": "Ynet",
+      "side": "center",
+      "title": "ראשי גוש השינוי יצאו נגד שת\"פ עם המפלגות הערביות וסיכמו: לוקחים את המנדט ראשונים",
+      "url": "https://www.ynet.co.il/news/article/bkh53qdtzx",
+      "extraction": "full",
+      "summary": "איזנקוט, בנט, ליברמן, גולן ולפיד נועדו לראשונה מאז הבחירות, בסיום הפגישה אמר בנט: \"אין לנו זמן, ניקח את המנדט ונפעל להקמת ממשלת תיקון ציונית\". לפיד: \"צריך להוציא את נתניהו מהלשכה\". גולן שלל הצטרפות לאחדות עם נתניהו ושאל אם ההחלטה לא לשתף פעולה עם המפלגות הערביות היא סופית. ליברמן ענה \"כן\", והיתר הנה"
+    },
+    "basis": "Different events or separate opinion pieces; no same-event evidence supplied."
+  },
+  {
+    "id": "old-distinct-16-14",
+    "expected_same": false,
+    "a": {
+      "source": "Ynet",
+      "side": "center",
+      "title": "ערביי ישראל כבר עברו את מבחן הנאמנות",
+      "url": "https://www.ynet.co.il/news/article/b1ockfd6fx",
+      "extraction": "full",
+      "summary": "אם ממשלת ישראל הבאה תודיע ל-21% אחוז מאזרחיה שהם לא רצויים פוליטית, הדבר עלול לגרור תגובות חריפות של ניכור ואפילו אלימות, מה שיספק כמובן הצדקה לפגיעה נוספת, בלתי מידתית, באזרחים הערבים, ובמדינת ישראל כולה"
+    },
+    "b": {
+      "source": "Ynet",
+      "side": "center",
+      "title": "הצבענו. על מה אנחנו נענשים?",
+      "url": "https://www.ynet.co.il/news/article/sk0ny7wtzg",
+      "extraction": "lead_only",
+      "summary": "מה משמעותה של זכות ההצבעה אם כוחם הפוליטי של המצביעים נפסל מראש כבסיס לשותפות שלטונית? מדוע קוראים לנו להשתתף בדמוקרטיה, ואז מתייחסים לאפשרות שנכריע בה כאיום?"
+    },
+    "basis": "Different events or separate opinion pieces; no same-event evidence supplied."
+  }
+]
