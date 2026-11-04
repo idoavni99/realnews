@@ -113,7 +113,7 @@ async function main() {
     rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:g.items,unvalidated:g.grouping==='unvalidated'}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
-  const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published)).slice(0,30);
+  const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published));
   const cacheDir=join(ROOT,'.cache'); mkdirSync(cacheDir,{recursive:true});
   const cachePath=join(cacheDir,'synthesis.json');
   let cache: Record<string,StorySynthesis>={};
@@ -174,7 +174,7 @@ async function main() {
     monitored_sides: monitoredSides,
     source_health: sourceHealth,
     ...(grouping?{grouping:{mode:'model',complete:grouping.complete,unvalidated_articles:grouping.unvalidated_articles}}:{}),
-    stories: stories.slice(0, 30),
+    stories,
   };
   const reportedCost=callAudit.reduce((sum:number,a:any)=>sum+(typeof a.usage?.cost==='number'?a.usage.cost:0),0);
   const missingCost=callAudit.filter((a:any)=>typeof a.usage?.cost!=='number').length;

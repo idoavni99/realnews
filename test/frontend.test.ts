@@ -23,3 +23,10 @@ test('unified feed renders each matching story once and retains original detail 
  const c=context('?side=left');c.run(`DATA={generated_at:new Date().toISOString(),window_hours:24,monitored_sides:['left','right'],source_health:{},stories:[{headline:'One',summary:'lead',total:2,counts:{left:1,right:1},articles:[{side:'left',title:'left'},{side:'right',title:'right'}]},{headline:'Two',summary:'other',total:1,counts:{right:1},articles:[{side:'right',title:'right'}]}]};renderFeed();`);
  const feed=c.node('feed').innerHTML;assert.equal((feed.match(/class="card"/g)||[]).length,1);assert.ok(feed.includes('#/story/0'));assert.ok(feed.includes('1 מתוך 2'));assert.ok(!feed.includes('class="grp'));
 });
+
+test('published full-feed data has every completed group and no article duplicates',()=>{
+ const data=JSON.parse(readFileSync(new URL('../site/data.json',import.meta.url),'utf8'));
+ assert.ok(Array.isArray(data.stories));
+ const urls=data.stories.flatMap(s=>s.articles.map(a=>a.url));assert.equal(new Set(urls).size,urls.length);
+ const pipeline=readFileSync(new URL('../src/pipeline.ts',import.meta.url),'utf8');assert.ok(!/slice\(0,\s*30\)/.test(pipeline));
+});
