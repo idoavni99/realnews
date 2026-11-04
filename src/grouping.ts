@@ -35,10 +35,11 @@ export interface GroupingConfig {
 }
 export const DEFAULT_GROUPING: GroupingConfig = { batchTokens: 6000, checkpointShare: 0.4, leadChars: 280, maxCalls: 30, maxOutputTokens: 2000, delayMs: 0, reconcile: false };
 
-/** 'model_validated': membership came from a validated model answer (a singleton the model examined counts).
- *  'unvalidated': the article was NOT grouped by the model (failure, stop, cap or unfit checkpoint). It is a placeholder
- *  card, not evidence that the article is a distinct event, and must not get a generated summary. */
-export interface Group { id: string; articleIds: string[]; items: FeedItem[]; grouping: 'model_validated' | 'unvalidated' }
+/** 'schema_assigned': every member has a schema-valid model assignment. This is NOT
+ * independent same-event validation and can include semantically wrong model merges.
+ * 'unvalidated': ANY member lacks a schema-valid assignment (failure/stop/cap).
+ * Mixed groups remain unvalidated and must not receive generated summaries. */
+export interface Group { id: string; articleIds: string[]; items: FeedItem[]; grouping: 'schema_assigned' | 'unvalidated' }
 export interface BatchRecord {
   index: number; article_ids: string[]; est_tokens: number;
   est_output_reserve: number; checkpoint_level: 0 | 1 | 2; checkpoint_story_ids: string[];
@@ -191,7 +192,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
 
   const groups: Group[] = stories.map(s => {
     const members = [...s.members].sort((a, b) => Date.parse(byId.get(a)!.published) - Date.parse(byId.get(b)!.published) || (a < b ? -1 : 1));
-    return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: members.map(m => byId.get(m)!), grouping: members.every(m => unvalidated.has(m)) ? 'unvalidated' : 'model_validated' } as Group;
+    return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: members.map(m => byId.get(m)!), grouping: members.some(m => unvalidated.has(m)) ? 'unvalidated' : 'schema_assigned' } as Group;
   });
   const complete = unvalidated.size === 0 && (!cfg.reconcile || stories.length <= 1 || reconcile?.status === 'ok');
   return { groups, batches, calls, reconcile, complete, unvalidated_articles: unvalidated.size };

@@ -122,7 +122,7 @@ test('every sent checkpoint contains EVERY story known so far (no eviction)', as
   for (const b of r.batches) { assert.equal(b.checkpoint_story_ids.length, known); known += b.article_ids.length; }
   assert.ok(r.batches.length > 1);
   assert.equal(r.complete, true); assert.equal(r.unvalidated_articles, 0);
-  assert.ok(r.groups.every(g => g.grouping === 'model_validated'));
+  assert.ok(r.groups.every(g => g.grouping === 'schema_assigned'));
 });
 
 test('checkpoint that cannot fit the budget stops semantic grouping, marks the rest unresolved, not complete', async () => {
@@ -183,4 +183,34 @@ test('the transport is the only provider-specific piece: a custom client drives 
   const custom: LlmClient = { generateJson: async req => ({ json: { assignments: (req.input as any).new_articles.map((a: any) => ({ article_id: a.id, new_key: 'same' })) } }) };
   const r = await groupArticles([mk(1, 'x'), mk(2, 'y', 'walla')], custom);
   assert.equal(r.groups.length, 1);
+});
+
+test('a later assignment cannot validate a failed-batch placeholder member', async () => {
+  const items = Array.from({ length: 6 }, (_, i) => mk(i + 1, `E${i}: title`, 'ynet', 'x'.repeat(200)));
+  const m = mock((input, call) => call === 1 ? { assignments: [] } : {
+    assignments: input.new_articles.map((a: any) => ({ article_id: a.id, story_id: input.checkpoint.stories[0].id }))
+  });
+  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 700, checkpointShare: .3, leadChars: 200 });
+  assert.ok(r.batches.length > 1);
+  assert.equal(r.batches[0].status, 'rejected');
+  assert.ok(r.batches.some(b => b.status === 'ok'));
+  assert.ok(r.groups.some(g => g.items.length > 1), 'regression must exercise mixed membership');
+  assert.ok(r.groups.every(g => g.grouping === 'unvalidated'), 'one unvalidated member taints the whole group');
+  assert.equal(r.complete, false);
+});
+
+test('schema-valid assignment is not semantic event validation: captured false merges stay evaluation negatives', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/free-router-false-merges.json', import.meta.url), 'utf8'));
+  assert.ok(fixture.cases.length >= 3);
+  for (const c of fixture.cases) {
+    assert.equal(c.expected_same_event, false);
+    const items = c.articles.map((a: any, i: number) => ({ ...a, sourceName: a.source, side: 'center', published: new Date(Date.UTC(2026,10,4,0,i)).toISOString() }));
+    const m = mock(input => ({ assignments: input.new_articles.map((a: any) => ({ article_id: a.id, new_key: 'wrong-event' })) }));
+    const r = await groupArticles(items, m.client);
+    // Deliberately demonstrates the limit: valid IDs/schema alone cannot reject these false merges.
+    assert.equal(r.groups.length, 1);
+    assert.equal(r.groups[0].grouping, 'schema_assigned');
+    assert.notEqual(r.groups[0].grouping, 'event_verified');
+  }
 });

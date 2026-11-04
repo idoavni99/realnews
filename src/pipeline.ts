@@ -145,7 +145,7 @@ async function main() {
       headline: c.items.reduce((a, b) => (b.title.length > a.title.length ? b : a)).title,
       summary: storySummary(c.items), // Existing source text, never a generated event summary.
       synthesis, synthesis_status, caveats: accessCaveats(c.items),
-      ...(grouping?{grouping_status:heldBack?'unvalidated':'model_validated'}:{}),
+      ...(grouping?{grouping_status:heldBack?'unvalidated':'schema_assigned'}:{}),
       counts, // actual article counts per raw owner label
       coverage_weighted: weightedCoverage(counts), // weighted shares, not article counts
       total: c.items.length,
