@@ -222,3 +222,17 @@ test('article batch cap is independent of completion allowance',async()=>{
  assert.equal(r.calls,2);assert.deepEqual(r.batches.map(b=>b.article_ids.length),[5,5]);
  assert.ok(m.calls.every(c=>c.maxOutputTokens===2000));
 });
+
+test('each call constrains story IDs to its checkpoint and retains invalid IDs for diagnostics',async()=>{
+ const items=Array.from({length:4},(_,i)=>mk(i+1,`E${i}: title`));
+ const m=mock((input,c)=>c===1?perfect(input):{assignments:input.new_articles.map((a:any)=>({article_id:a.id,story_id:'fabricated-story'}))});
+ const r=await groupArticles(items,m.client,{maxArticlesPerBatch:2,maxCalls:2});
+ for(let i=0;i<m.calls.length;i++){
+  const input:any=m.calls[i].input;const schema:any=m.calls[i].schema;
+  assert.deepEqual(schema.properties.assignments.items.properties.story_id.enum,['',...input.checkpoint.stories.map((s:any)=>s.id)]);
+ }
+ assert.equal(r.batches[1].status,'rejected');
+ assert.match(r.batches[1].error!,/fabricated-story/);
+ assert.equal((r.batches[1].assignment_output as any)[0].story_id,'fabricated-story');
+ assert.ok(r.groups.filter(g=>g.items.some(a=>[items[2].url,items[3].url].includes(a.url))).every(g=>g.grouping==='unvalidated'));
+});
