@@ -28,7 +28,7 @@ test('normTokens strips Hebrew prefixes on long tokens', () => {
 
 test('clusterItems merges cross-source same-story titles', () => {
   const a = parseFeed(FEED, SRC)[0];
-  const b = { ...a, source: 'other', sourceName: 'Other', title: 'ראש הממשלה נפגש עם השר במשרדו', url: 'https://other.example/x' };
+  const b = { ...a, source: 'other', sourceName: 'Other', title: 'ראש הממשלה נפגש עם השר', url: 'https://other.example/x' };
   const clusters = clusterItems([a, b]);
   assert.equal(clusters.length, 1);
   assert.equal(clusters[0].items.length, 2);
@@ -108,13 +108,13 @@ test('cluster URL dedup ignores tracking and fragments', () => {
  assert.equal(clusterItems([a,b])[0].items.length,1);
 });
 
-test('cluster anchor does not expand through a chain into another event', () => {
+test('ambiguous near-match chain stays separate before synthesis', () => {
  const a = {...parseFeed(FEED,SRC)[0],title:'אלפא בטא גמא דלתא',summary:''};
  const b = {...a,url:'https://example.com/b',title:'אלפא בטא אפסילון זטא'};
  const c = {...a,url:'https://example.com/c',title:'אפסילון זטא אתא תטא'};
  const groups=clusterItems([a,b,c]);
- assert.equal(groups.length,2);
- assert.equal(groups[0].items.length,2);
+ assert.equal(groups.length,3);
+ assert.equal(groups[0].items.length,1);
 });
 
 import { validateSynthesis, synthesisInput } from '../src/synthesis.ts';
@@ -195,4 +195,16 @@ test('final sides-only model and verifier contract accepts evidence and fails cl
   globalThis.fetch=async()=>new Response('{}',{status:429});
   await assert.rejects(()=>verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'),/HTTP 429/);
  }finally{globalThis.fetch=original;}
+});
+
+test('distinct traffic accidents from the same outlet do not share a story',()=>{
+ const a={...parseFeed(FEED,SRC)[0],title:'שבעה פצועים בתאונת דרכים בדימונה ביניהם אישה במצב קשה',summary:'',url:'https://example.com/dimona'};
+ const b={...a,title:'שלושה פצועים בתאונת דרכים סמוך לגניגר אחד במצב קשה',url:'https://example.com/ginegar'};
+ assert.equal(clusterItems([a,b]).length,2);
+});
+
+test('same generic accident wording across outlets with different locations stays separate',()=>{
+ const a={...parseFeed(FEED,SRC)[0],title:'תאונת דרכים בדימונה שבעה פצועים',summary:'',url:'https://example.com/d'};
+ const b={...a,source:'other',title:'תאונת דרכים בגניגר שלושה פצועים',url:'https://other.example/g'};
+ assert.equal(clusterItems([a,b]).length,2);
 });

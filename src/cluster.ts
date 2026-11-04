@@ -10,6 +10,10 @@ export interface Cluster {
  * Baseline cross-source story clustering: containment similarity over
  * normalized title+summary-lead tokens. An LLM step can replace this later.
  */
+export function eventKey(title:string):string {
+ return title.normalize('NFKC').replace(/[\p{P}\p{S}]/gu,' ').replace(/\s+/g,' ').trim().toLowerCase();
+}
+
 export function clusterItems(items: FeedItem[], threshold = 0.45): Cluster[] {
   const clusters: Cluster[] = [];
   const seenUrls = new Set<string>();
@@ -25,6 +29,12 @@ export function clusterItems(items: FeedItem[], threshold = 0.45): Cluster[] {
     let best: Cluster | null = null;
     let bestSim = 0;
     for (const c of clusters) {
+      // Conservative: distinct URLs from one outlet are separate events by default.
+      // URL-level duplicates were already removed above.
+      if(c.items.some(a=>a.source===it.source)) continue;
+      // Until a pre-synthesis semantic gate is independently evaluated, ambiguous
+      // near-matches stay separate. Exact normalized headlines only.
+      if(eventKey(c.items[0].title)!==eventKey(it.title)) continue;
       const inter = [...toks].filter((t) => c.tokens.has(t)).length;
       const sim = inter / (Math.min(toks.size, c.tokens.size) || 1);
       if (sim > bestSim) { best = c; bestSim = sim; }

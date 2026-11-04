@@ -31,8 +31,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache
-          key: synthesis-v6-${{ github.run_id }}
-          restore-keys: synthesis-v6-
+          key: synthesis-v7-${{ github.run_id }}
+          restore-keys: synthesis-v7-
       - name: Run pipeline
         env:
           REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
@@ -44,6 +44,13 @@ jobs:
           name: staged-digest
           path: site/data.json
           retention-days: 3
+      - name: Private review evidence
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-review-evidence
+          path: .review/evidence.json
+          retention-days: 1
       - name: Commit updated data
         if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
         run: |

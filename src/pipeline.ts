@@ -86,28 +86,33 @@ async function main() {
   let cache: Record<string,StorySynthesis>={};
   try { if(existsSync(cachePath)) cache=JSON.parse(readFileSync(cachePath,'utf8')); } catch { console.error('Ignoring invalid synthesis cache'); }
   const nextCache:Record<string,StorySynthesis>={};
+  const review:unknown[]=[];
+  const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
   let calls=0, unavailable=false;
   const maxCalls=60; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
   for (const c of clusters) {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v6-sides-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    const fingerprint=createHash('sha256').update('v7-event-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     if(process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
+    const audit:{story:number;fingerprint:string;evidence:ReturnType<typeof synthesisInput>;draft?:StorySynthesis;verdicts?:unknown;error?:string;status?:string}={story:stories.length,fingerprint,evidence:synthesisInput(c.items)};
     if(!synthesis && process.env.GEMINI_API_KEY && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
       synthesis_status='unavailable';
       if(!unavailable && calls+2<=maxCalls) {
         calls++;
         try {
-          const draft=await synthesizeStory(c.items,process.env.GEMINI_API_KEY);
+          const draft=await synthesizeStory(c.items,process.env.GEMINI_API_KEY); audit.draft=draft;
           calls++;
           const verdicts=await verifyCandidates(c.items,[{id:'summary',summary:draft}],process.env.GEMINI_API_KEY);
+          audit.verdicts=verdicts;
           if(!verdicts[0]?.supported) throw new Error('Verification rejected summary');
           synthesis=draft; synthesis_status='ready';
         }
-        catch(e) { synthesis_status=/Verification rejected|Invalid|Unsupported|Unexpected/.test((e as Error).message)?'rejected':'unavailable'; console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
+        catch(e) { audit.error=(e as Error).message.slice(0,250); synthesis_status=/Verification rejected|Invalid|Unsupported|Unexpected/.test((e as Error).message)?'rejected':'unavailable'; console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
         await sleep(10000); // At most 12 calls/minute including verification, below verified 15 RPM.
       }
     }
+    audit.status=synthesis_status; review.push(audit);
     if(synthesis) nextCache[fingerprint]=synthesis;
     const counts: Record<string, number> = {};
     for (const i of c.items) {
@@ -133,6 +138,7 @@ async function main() {
     source_health: sourceHealth,
     stories: stories.slice(0, 30),
   };
+  writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,stories:review},null,2));
   writeFileSync(cachePath,JSON.stringify(nextCache));
   const dest = join(ROOT, 'site', 'data.json');
   writeFileSync(dest, JSON.stringify(out, null, 1));

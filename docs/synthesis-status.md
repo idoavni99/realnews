@@ -64,3 +64,15 @@ renders cited side summaries, deterministic access caveat, absent side and rejec
 unavailable states. Actual 390px accepted and 320px unavailable previews inspected;
 no clipping or horizontal overflow seen. Evidence screenshots are local previews,
 not production. Twenty-two tests pass. No production publication or secret install.
+
+Current-news staged run41687722830: 93 articles,44 full-text,30 stories.
+Two summaries accepted, one numeric rejection, then503stopped all remaining calls
+(27unavailable). Manual review found two different accidents under one headline;
+release blocked. Original artifact preserved as staged-cluster-failure fixture.
+A conservative pre-synthesis gate now only merges exact punctuation-normalized
+headlines from different outlets. Near matches stay separate; this deliberately
+reduces cross-source recall, and exact generic headlines can still be ambiguous.
+It is not a semantic matching solution. No further model calls after this finding.
+Private .review evidence snapshots capture exact capped model evidence and draft/
+verdict/error, upload only as1day artifact in the private repo staging run, never
+site content. This capture code has not been exercised in a new staged run yet.
