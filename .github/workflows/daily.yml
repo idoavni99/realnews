@@ -1,7 +1,9 @@
 name: Daily digest
 on:
   schedule:
-    - cron: '20 3 * * *'   # ~05:20-06:20 Israel time (UTC+2/+3); GitHub runs scheduled jobs best-effort
+    # 09:00 and 21:00 Israel time. timezone makes GitHub handle DST; runs are best-effort and can start late.
+    - cron: '0 9,21 * * *'
+      timezone: 'Asia/Jerusalem'
   workflow_dispatch:
     inputs:
       publish:
