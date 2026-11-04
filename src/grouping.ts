@@ -26,26 +26,33 @@ export interface GroupingConfig {
   leadChars: number;
   /** Hard cap on model calls for grouping (and reconciliation). */
   maxCalls: number;
+  /** maxOutputTokens requested for each grouping call. */
+  maxOutputTokens: number;
   /** Pause between calls (rate limit), ms. */
   delayMs: number;
   /** Optional second pass over compact story descriptors. Off by default. */
   reconcile: boolean;
 }
-export const DEFAULT_GROUPING: GroupingConfig = { batchTokens: 6000, checkpointShare: 0.4, leadChars: 280, maxCalls: 30, delayMs: 0, reconcile: false };
+export const DEFAULT_GROUPING: GroupingConfig = { batchTokens: 6000, checkpointShare: 0.4, leadChars: 280, maxCalls: 30, maxOutputTokens: 2000, delayMs: 0, reconcile: false };
 
-export interface Group { id: string; articleIds: string[]; items: FeedItem[] }
+/** 'model_validated': membership came from a validated model answer (a singleton the model examined counts).
+ *  'unvalidated': the article was NOT grouped by the model (failure, stop, cap or unfit checkpoint). It is a placeholder
+ *  card, not evidence that the article is a distinct event, and must not get a generated summary. */
+export interface Group { id: string; articleIds: string[]; items: FeedItem[]; grouping: 'model_validated' | 'unvalidated' }
 export interface BatchRecord {
   index: number; article_ids: string[]; est_tokens: number;
-  checkpoint_level: 0 | 1 | 2; checkpoint_story_ids: string[]; checkpoint_dropped: string[];
-  status: 'ok' | 'rejected' | 'unavailable' | 'skipped';
+  est_output_reserve: number; checkpoint_level: 0 | 1 | 2; checkpoint_story_ids: string[];
+  status: 'ok' | 'rejected' | 'unavailable' | 'skipped' | 'unresolved';
   input?: unknown; usage?: Record<string, unknown>; error?: string;
 }
 export interface GroupingResult {
   groups: Group[]; batches: BatchRecord[]; calls: number;
+  /** false if ANY article stayed unvalidated or an enabled reconcile step did not finish. Never present a false run as complete grouping. */
+  complete: boolean; unvalidated_articles: number;
   reconcile?: { status: 'ok' | 'rejected' | 'unavailable' | 'skipped'; merges: { keep: string; absorb: string[] }[]; error?: string };
 }
 
-/** Rough upper-ish estimate for Hebrew/mixed text. A heuristic, never a measured count. */
+/** Rough character-based estimate for Hebrew/mixed text. A HEURISTIC with no guarantee: the provider's real tokenizer may count more. Keep batchTokens well under the real model limit. */
 export const estTokens = (s: string): number => Math.ceil(s.length / 2);
 
 export function canonicalUrl(raw: string): string {
@@ -70,21 +77,19 @@ interface CkStory { id: string; title: string; brief?: string; count: number }
 
 const lead = (it: FeedItem, n: number) => (it.fulltext || it.summary || '').replace(/\s+/g, ' ').slice(0, n);
 
-/** Compact the checkpoint to a token budget: full -> no brief -> drop oldest single-article stories. */
-export function compactCheckpoint(stories: StoryState[], budget: number): { stories: CkStory[]; level: 0 | 1 | 2; dropped: string[] } {
+/**
+ * Compact the checkpoint WITHOUT dropping any story: full -> no brief -> short titles (ids and counts always kept).
+ * `soft` is the preferred size; `hard` is the largest size that still leaves room for the call to work.
+ * If level 2 still exceeds `hard`, `fits` is false and the caller must stop semantic grouping.
+ */
+export function compactCheckpoint(stories: StoryState[], soft: number, hard: number = soft): { stories: CkStory[]; level: 0 | 1 | 2; fits: boolean } {
+  const size = (x: CkStory[]) => estTokens(JSON.stringify(x));
   const full: CkStory[] = stories.map(s => ({ id: s.id, title: s.title, brief: s.brief, count: s.members.length }));
-  if (estTokens(JSON.stringify(full)) <= budget) return { stories: full, level: 0, dropped: [] };
+  if (size(full) <= soft) return { stories: full, level: 0, fits: true };
   const noBrief: CkStory[] = full.map(({ brief: _b, ...r }) => r);
-  if (estTokens(JSON.stringify(noBrief)) <= budget) return { stories: noBrief, level: 1, dropped: [] };
-  // Level 2: drop single-article stories oldest first, then smallest multi-article stories oldest first.
-  const order = [...noBrief].map((s, i) => ({ s, i })).sort((a, b) => a.s.count - b.s.count || a.i - b.i);
-  const dropped = new Set<string>();
-  let kept = noBrief;
-  for (const { s } of order) {
-    if (estTokens(JSON.stringify(kept)) <= budget) break;
-    dropped.add(s.id); kept = noBrief.filter(x => !dropped.has(x.id));
-  }
-  return { stories: kept, level: 2, dropped: [...dropped] };
+  if (size(noBrief) <= soft) return { stories: noBrief, level: 1, fits: true };
+  const short: CkStory[] = noBrief.map(s => ({ ...s, title: s.title.slice(0, 50) }));
+  return { stories: short, level: 2, fits: size(short) <= hard };
 }
 
 const FATAL = /HTTP (429|503|403)/;
@@ -100,27 +105,47 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
   let nextStory = 1; let calls = 0; let stopped = !llm;
   const batches: BatchRecord[] = [];
   const singleton = (id: string) => { const it = byId.get(id)!; stories.push({ id: 's' + nextStory++, title: it.title, brief: lead(it, 160), members: [id] }); };
-  const ckBudget = Math.floor(cfg.batchTokens * cfg.checkpointShare);
+  const softCk = Math.floor(cfg.batchTokens * cfg.checkpointShare);
   const fixed = estTokens(GROUPING_INSTRUCTIONS) + estTokens(JSON.stringify(GROUPING_SCHEMA));
+  // Output reserve per article: one assignment row. Charged against the same budget as the input.
+  const OUT_BASE = 50, OUT_PER_ARTICLE = 30;
+  const unvalidated = new Set<string>();
+  const markUnvalidated = (ids: string[]) => ids.forEach(i => unvalidated.add(i));
+  const row = (id: string) => { const it = byId.get(id)!; return { id, source: it.sourceName, title: it.title, lead: lead(it, cfg.leadChars) }; };
+  const rowCost = (id: string) => estTokens(JSON.stringify(row(id)));
 
   while (queue.length) {
-    const ck = compactCheckpoint(stories, ckBudget);
-    const room = cfg.batchTokens - fixed - estTokens(JSON.stringify(ck.stories));
+    // Budget = instructions + schema + checkpoint + new articles + output reserve <= batchTokens (heuristic estimate).
+    const WRAP = 40; // JSON wrapper/separator allowance
+    const hard = cfg.batchTokens - fixed - OUT_BASE - OUT_PER_ARTICLE - rowCost(queue[0]) - WRAP;
+    const ck = compactCheckpoint(stories, softCk, hard);
+    const ckTokens = estTokens(JSON.stringify(ck.stories));
+    const room = cfg.batchTokens - fixed - ckTokens - OUT_BASE - WRAP;
     const take: string[] = []; let used = 0;
-    const row = (id: string) => { const it = byId.get(id)!; return { id, source: it.sourceName, title: it.title, lead: lead(it, cfg.leadChars) }; };
-    while (queue.length) {
-      const cost = estTokens(JSON.stringify(row(queue[0])));
-      if (take.length && used + cost > room) break; // always at least one article, even if oversized
-      used += cost; take.push(queue.shift()!);
-    }
-    const rec: BatchRecord = { index: batches.length, article_ids: take, est_tokens: fixed + estTokens(JSON.stringify(ck.stories)) + used, checkpoint_level: ck.level, checkpoint_story_ids: ck.stories.map(s => s.id), checkpoint_dropped: ck.dropped, status: 'ok' };
+    if (ck.fits) {
+      while (queue.length) {
+        const cost = rowCost(queue[0]) + OUT_PER_ARTICLE;
+        if (take.length && (used + cost > room || (take.length + 1) * OUT_PER_ARTICLE + OUT_BASE > cfg.maxOutputTokens / 2)) break;
+        used += cost; take.push(queue.shift()!);
+      }
+    } else { take.push(...queue.splice(0)); } // everything left is reported as one unresolved record
+    // Exact check on the real payload (wrappers and separators included): give articles back until it fits.
+    const payload = () => ({ checkpoint: { stories: ck.stories }, new_articles: take.map(row) });
+    const total = () => fixed + estTokens(JSON.stringify(payload())) + OUT_BASE + OUT_PER_ARTICLE * take.length;
+    while (ck.fits && take.length > 1 && total() > cfg.batchTokens) queue.unshift(take.pop()!);
+    if (ck.fits && total() > cfg.batchTokens) { ck.fits = false; queue.unshift(...take.splice(0)); take.push(...queue.splice(0)); } // even one article cannot fit: stop, never exceed the budget silently
+    const rec: BatchRecord = { index: batches.length, article_ids: take, est_tokens: ck.fits ? total() : fixed + ckTokens, est_output_reserve: OUT_BASE + OUT_PER_ARTICLE * take.length, checkpoint_level: ck.level, checkpoint_story_ids: ck.stories.map(s => s.id), status: 'ok' };
     batches.push(rec);
-    if (stopped || calls >= cfg.maxCalls) { rec.status = stopped ? 'unavailable' : 'skipped'; if (!stopped) rec.error = 'call cap reached'; take.forEach(singleton); continue; }
-    const input = { checkpoint: { stories: ck.stories }, new_articles: take.map(row) };
+    if (!ck.fits) {
+      rec.status = 'unresolved'; rec.error = 'checkpoint index cannot fit the token budget even at the shortest form; semantic grouping stopped, remaining articles left ungrouped';
+      stopped = true; markUnvalidated(take); take.forEach(singleton); continue;
+    }
+    if (stopped || calls >= cfg.maxCalls) { rec.status = stopped ? 'unavailable' : 'skipped'; if (!stopped) rec.error = 'call cap reached'; markUnvalidated(take); take.forEach(singleton); continue; }
+    const input = payload();
     rec.input = input;
     calls++;
     try {
-      const { json, usage } = await llm!.generateJson({ label: 'Grouping', system: GROUPING_INSTRUCTIONS, input, schema: GROUPING_SCHEMA, temperature: 0, maxOutputTokens: 2000 });
+      const { json, usage } = await llm!.generateJson({ label: 'Grouping', system: GROUPING_INSTRUCTIONS, input, schema: GROUPING_SCHEMA, temperature: 0, maxOutputTokens: cfg.maxOutputTokens });
       rec.usage = usage;
       const plan = validateAssignments(json, take, new Set(ck.stories.map(s => s.id)));
       const created = new Map<string, StoryState>();
@@ -137,7 +162,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
       const msg = (e as Error).message.slice(0, 250); rec.error = msg;
       if (FATAL.test(msg) || !/Invalid grouping/.test(msg) && !/Empty Grouping/.test(msg) && !(e instanceof SyntaxError)) { rec.status = 'unavailable'; stopped = true; }
       else rec.status = 'rejected';
-      take.forEach(singleton); // fail closed: nothing merged from an unusable answer
+      markUnvalidated(take); take.forEach(singleton); // fail closed: nothing merged, nothing claimed as validated
     }
     if (queue.length && cfg.delayMs && !stopped) await sleep(cfg.delayMs);
   }
@@ -145,9 +170,11 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
   let reconcile: GroupingResult['reconcile'];
   if (cfg.reconcile) {
     reconcile = { status: 'skipped', merges: [] };
-    const ck = compactCheckpoint(stories, cfg.batchTokens - estTokens(RECONCILE_INSTRUCTIONS) - estTokens(JSON.stringify(RECONCILE_SCHEMA)));
+    const rBudget = cfg.batchTokens - estTokens(RECONCILE_INSTRUCTIONS) - estTokens(JSON.stringify(RECONCILE_SCHEMA)) - 300; // 300: output reserve
+    const ck = compactCheckpoint(stories, rBudget);
     if (!llm || stopped || calls >= cfg.maxCalls) reconcile.error = 'unavailable or call cap';
-    else if (ck.dropped.length) reconcile.error = 'story descriptors exceed token budget; not reconciled';
+    else if (unvalidated.size) reconcile.error = 'grouping incomplete (unvalidated articles); not reconciled';
+    else if (!ck.fits) reconcile.error = 'story descriptors exceed token budget; not reconciled';
     else if (stories.length > 1) {
       calls++;
       try {
@@ -164,9 +191,10 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
 
   const groups: Group[] = stories.map(s => {
     const members = [...s.members].sort((a, b) => Date.parse(byId.get(a)!.published) - Date.parse(byId.get(b)!.published) || (a < b ? -1 : 1));
-    return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: members.map(m => byId.get(m)!) };
+    return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: members.map(m => byId.get(m)!), grouping: members.every(m => unvalidated.has(m)) ? 'unvalidated' : 'model_validated' } as Group;
   });
-  return { groups, batches, calls, reconcile };
+  const complete = unvalidated.size === 0 && (!cfg.reconcile || stories.length <= 1 || reconcile?.status === 'ok');
+  return { groups, batches, calls, reconcile, complete, unvalidated_articles: unvalidated.size };
 }
 
 export function validateAssignments(value: unknown, sent: string[], knownStories: Set<string>): Map<string, { story_id?: string; new_key?: string }> {

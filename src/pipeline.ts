@@ -86,7 +86,7 @@ async function main() {
   // Model-led grouping (batches + compaction) is opt-in and needs both flags plus a configured provider.
   // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
   let grouping:GroupingResult|undefined;
-  let rawClusters:Cluster[];
+  let rawClusters:(Cluster&{unvalidated?:boolean})[];
   if(llm && process.env.REALNEWS_SYNTHESIS_ENABLED==='true' && process.env.REALNEWS_GROUPING==='model') {
     grouping=await groupArticles(items,llm,{
       delayMs:Number(process.env.REALNEWS_LLM_DELAY_MS??5000),
@@ -94,8 +94,8 @@ async function main() {
       batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS??6000),
       reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
     });
-    rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:g.items}));
-    console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
+    rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:g.items,unvalidated:g.grouping==='unvalidated'}));
+    console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
   const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published)).slice(0,30);
   const cacheDir=join(ROOT,'.cache'); mkdirSync(cacheDir,{recursive:true});
@@ -111,9 +111,11 @@ async function main() {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
     const fingerprint=createHash('sha256').update('v7-event-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
-    if(process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
+    const heldBack=!!(c as {unvalidated?:boolean}).unvalidated; // not grouped by a validated model answer: no generated summary
+    if(heldBack) synthesis_status='grouping_unvalidated';
+    if(!heldBack && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
     const audit:{story:number;fingerprint:string;evidence:ReturnType<typeof synthesisInput>;draft?:StorySynthesis;verdicts?:unknown;error?:string;status?:string}={story:stories.length,fingerprint,evidence:synthesisInput(c.items)};
-    if(!synthesis && llm && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
+    if(!heldBack && !synthesis && llm && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
       synthesis_status='unavailable';
       if(!unavailable && calls+2<=maxCalls) {
         calls++;
@@ -139,6 +141,7 @@ async function main() {
       headline: c.items.reduce((a, b) => (b.title.length > a.title.length ? b : a)).title,
       summary: storySummary(c.items), // Existing source text, never a generated event summary.
       synthesis, synthesis_status, caveats: accessCaveats(c.items),
+      ...(grouping?{grouping_status:heldBack?'unvalidated':'model_validated'}:{}),
       counts,
       total: c.items.length,
       articles: c.items.map((i) => ({
@@ -153,6 +156,7 @@ async function main() {
     window_hours: cfg.windowHours,
     monitored_sides: monitoredSides,
     source_health: sourceHealth,
+    ...(grouping?{grouping:{mode:'model',complete:grouping.complete,unvalidated_articles:grouping.unvalidated_articles}}:{}),
     stories: stories.slice(0, 30),
   };
   writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,stories:review},null,2));

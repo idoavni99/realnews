@@ -45,9 +45,9 @@ test('single batch: model groups across outlets; originals retained under stable
 test('token-bounded batches; later batch joins earlier story through compact checkpoint only', async () => {
   const items = [1, 2, 3, 4, 5, 6].map(n => mk(n, `E${n % 2}: כותרת ${n}`, 'ynet', 'x'.repeat(200)));
   const { client, calls } = mock(perfect);
-  const r = await groupArticles(items, client, { batchTokens: FIXED + 520, checkpointShare: 0.3, leadChars: 200 });
+  const r = await groupArticles(items, client, { batchTokens: FIXED + 700, checkpointShare: 0.3, leadChars: 200 });
   assert.ok(r.batches.length >= 3, 'forced several batches');
-  for (const b of r.batches) assert.ok(b.est_tokens <= FIXED + 520 + 200, 'estimated size near budget');
+  for (const b of r.batches) assert.ok(b.est_tokens <= FIXED + 700, 'estimated size within budget');
   assert.equal(r.groups.length, 2, 'cross-batch same events were joined');
   assert.equal(r.groups.reduce((n, g) => n + g.items.length, 0), 6);
   // New context: batch 2+ must not contain earlier articles' text or ids as new_articles, only the checkpoint.
@@ -83,7 +83,7 @@ test('missing, duplicate, or ambiguous assignment is rejected', () => {
 test('HTTP 503 stops further calls and leaves remaining articles ungrouped', async () => {
   const items = [1, 2, 3, 4, 5, 6].map(n => mk(n, `E: ${n}`, 'ynet', 'x'.repeat(200)));
   const m = mock((_i, c) => c === 1 ? perfect(_i) : new Error('Grouping HTTP 503: overloaded'));
-  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 520, checkpointShare: 0.3, leadChars: 200 });
+  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 700, checkpointShare: 0.3, leadChars: 200 });
   assert.equal(m.calls.length, 2, 'no calls after the 503');
   assert.ok(r.batches.some(b => b.status === 'unavailable'));
   assert.equal(r.groups.reduce((n, g) => n + g.items.length, 0), 6, 'no article lost');
@@ -97,31 +97,73 @@ test('no provider configured: every article is its own story, zero calls', async
 test('call cap is enforced', async () => {
   const items = [1, 2, 3, 4, 5, 6].map(n => mk(n, `E${n}: t`, 'ynet', 'x'.repeat(200)));
   const m = mock(perfect);
-  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 520, checkpointShare: 0.3, leadChars: 200, maxCalls: 2 });
+  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 700, checkpointShare: 0.3, leadChars: 200, maxCalls: 2 });
   assert.equal(m.calls.length, 2);
   assert.ok(r.batches.some(b => b.status === 'skipped'));
 });
 
-test('checkpoint compaction levels: brief dropped, then small stories dropped and reported', () => {
-  const stories = Array.from({ length: 40 }, (_, i) => ({ id: 's' + i, title: 'כותרת ארוכה מספיק ' + i, brief: 'פתיח '.repeat(30), members: i === 0 ? ['a', 'b'] : ['a'] }));
-  const full = compactCheckpoint(stories, 1e6); assert.equal(full.level, 0);
-  const lvl1 = compactCheckpoint(stories, estTokens(JSON.stringify(stories.map(s => ({ id: s.id, title: s.title, count: s.members.length })))) + 5);
-  assert.equal(lvl1.level, 1); assert.ok(lvl1.stories.every(s => !('brief' in s)));
-  const lvl2 = compactCheckpoint(stories, 300);
-  assert.equal(lvl2.level, 2); assert.ok(lvl2.dropped.length > 0);
-  assert.ok(lvl2.stories.some(s => s.id === 's0'), 'multi-article story kept longest');
-  assert.ok(estTokens(JSON.stringify(lvl2.stories)) <= 300);
+test('checkpoint compaction never drops a story: brief, then short titles; reports when it cannot fit', () => {
+  const stories = Array.from({ length: 40 }, (_, i) => ({ id: 's' + i, title: 'כותרת ארוכה מספיק '.repeat(6) + i, brief: 'פתיח '.repeat(30), members: i === 0 ? ['a', 'b'] : ['a'] }));
+  const full = compactCheckpoint(stories, 1e6); assert.equal(full.level, 0); assert.equal(full.stories.length, 40);
+  const noBrief = estTokens(JSON.stringify(stories.map(s => ({ id: s.id, title: s.title, count: s.members.length }))));
+  const l1 = compactCheckpoint(stories, noBrief + 5);
+  assert.equal(l1.level, 1); assert.ok(l1.stories.every(s => !('brief' in s)));
+  const l2 = compactCheckpoint(stories, 100, 1e6);
+  assert.equal(l2.level, 2); assert.equal(l2.stories.length, 40, 'no story evicted'); assert.ok(l2.stories.every(s => s.title.length <= 50));
+  assert.deepEqual(l2.stories.map(s => s.id), stories.map(s => s.id)); assert.equal(l2.stories[0].count, 2, 'counts and ids kept');
+  assert.equal(l2.fits, true);
+  assert.equal(compactCheckpoint(stories, 100, 100).fits, false, 'cannot fit: caller must stop');
 });
 
-test('dropped checkpoint stories cannot be referenced by the model', async () => {
-  const items = [1, 2, 3, 4, 5, 6].map(n => mk(n, `E${n}: t`, 'ynet', 'x'.repeat(200)));
-  const m = mock((input, c) => c === 2 ? { assignments: input.new_articles.map((a: any) => ({ article_id: a.id, story_id: 's1' })) } : perfect(input));
-  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 520, checkpointShare: 0.05, leadChars: 200 });
-  const b = r.batches[1];
-  assert.ok(b.checkpoint_dropped.includes('s1'), 'oldest single story was compacted out of the sent checkpoint');
-  assert.equal(b.status, 'rejected');
-  assert.match(b.error!, /unknown story id/);
-  assert.equal(r.groups.reduce((n, g) => n + g.items.length, 0), 6);
+test('every sent checkpoint contains EVERY story known so far (no eviction)', async () => {
+  const items = [1, 2, 3, 4, 5, 6, 7, 8].map(n => mk(n, `E${n}: t`, 'ynet', 'x'.repeat(200)));
+  const r = await groupArticles(items, mock(perfect).client, { batchTokens: FIXED + 1100, checkpointShare: 0.9, leadChars: 200 });
+  let known = 0;
+  for (const b of r.batches) { assert.equal(b.checkpoint_story_ids.length, known); known += b.article_ids.length; }
+  assert.ok(r.batches.length > 1);
+  assert.equal(r.complete, true); assert.equal(r.unvalidated_articles, 0);
+  assert.ok(r.groups.every(g => g.grouping === 'model_validated'));
+});
+
+test('checkpoint that cannot fit the budget stops semantic grouping, marks the rest unresolved, not complete', async () => {
+  const items = [1, 2, 3, 4, 5, 6, 7, 8].map(n => mk(n, `E${n}: t`, 'ynet', 'x'.repeat(200)));
+  const m = mock(perfect);
+  const r = await groupArticles(items, m.client, { batchTokens: FIXED + 330, checkpointShare: 0.1, leadChars: 200 });
+  const un = r.batches.find(b => b.status === 'unresolved')!;
+  assert.ok(un, 'an unresolved batch is recorded'); assert.match(un.error!, /cannot fit/);
+  assert.equal(m.calls.length, r.batches.length - 1, 'no call for the unresolved remainder');
+  assert.equal(r.complete, false); assert.ok(r.unvalidated_articles > 0);
+  assert.equal(r.groups.reduce((n, g) => n + g.items.length, 0), 8, 'no article lost');
+  assert.equal(r.groups.filter(g => g.grouping === 'unvalidated').length, r.unvalidated_articles);
+});
+
+test('transport failure, rejection and no provider yield unvalidated placeholders, never validated groups', async () => {
+  const items = [mk(1, 'A: x'), mk(2, 'A: y', 'walla')];
+  const r = await groupArticles(items, mock(() => new Error('Grouping HTTP 503: x')).client);
+  assert.equal(r.complete, false); assert.equal(r.unvalidated_articles, 2);
+  assert.ok(r.groups.every(g => g.grouping === 'unvalidated'));
+  const r2 = await groupArticles(items, mock(() => ({ assignments: [] })).client);
+  assert.ok(r2.groups.every(g => g.grouping === 'unvalidated'));
+  const r3 = await groupArticles(items, undefined);
+  assert.equal(r3.complete, false); assert.ok(r3.groups.every(g => g.grouping === 'unvalidated'));
+});
+
+test('budget covers instructions + schema + checkpoint + articles + output reserve (heuristic estimate)', async () => {
+  const items = Array.from({ length: 12 }, (_, i) => mk(i + 1, `E${i}: t`, 'ynet', 'x'.repeat(250)));
+  const BT = FIXED + 900;
+  const r = await groupArticles(items, mock(perfect).client, { batchTokens: BT, checkpointShare: 0.6, leadChars: 250 });
+  for (const b of r.batches.filter(x => x.input)) {
+    const sent = estTokens(GROUPING_INSTRUCTIONS) + estTokens(JSON.stringify(GROUPING_SCHEMA)) + estTokens(JSON.stringify(b.input));
+    assert.ok(sent + b.est_output_reserve <= BT, `input ${sent} + output reserve ${b.est_output_reserve} within ${BT}`);
+  }
+  assert.ok(r.batches.length > 1);
+});
+
+test('output reserve also bounds articles per call by maxOutputTokens', async () => {
+  const items = Array.from({ length: 12 }, (_, i) => mk(i + 1, `E${i}: t`, 'ynet', 'y'));
+  const r = await groupArticles(items, mock(perfect).client, { batchTokens: 100000, maxOutputTokens: 400 });
+  for (const b of r.batches) assert.ok(b.est_output_reserve <= 400 / 2 + 30);
+  assert.ok(r.batches.length > 1);
 });
 
 test('optional reconciliation merges via validated ids only and is off by default', async () => {
