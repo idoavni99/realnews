@@ -41,7 +41,7 @@ jobs:
         env:
           REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
           REALNEWS_GROUPING: ${{ inputs.grouping && 'model' || 'lexical' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
       - name: Preserve staged output
         uses: actions/upload-artifact@v4

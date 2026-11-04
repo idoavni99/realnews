@@ -180,11 +180,13 @@ test('final sides-only model and verifier contract accepts evidence and fails cl
  const original=globalThis.fetch;
  const items=[{...parseFeed(FEED,SRC)[0],side:'left'}];
  const value={sides:{left:{summary:[{text:'ראש הממשלה נפגש עם השר',article_ids:[0]}]},center:{summary:[]},right:{summary:[]}}};
- const reply=(v:unknown)=>new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify(v)}]}}]}));
+ const reply=(v:unknown)=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(v)}}]}));
  try {
   globalThis.fetch=async(_url,init)=>{
    const body=JSON.parse(String(init?.body));
-   assert.deepEqual(body.generationConfig.responseSchema.required,['sides']);
+   assert.equal(body.model,'google/gemini-3.5-flash-lite');
+   assert.deepEqual(body.response_format.json_schema.schema.required,['sides']);
+   assert.equal(body.response_format.json_schema.schema.type,'object');
    return reply(value);
   };
   assert.deepEqual(await synthesizeStory(items,'test-not-a-key'),value);

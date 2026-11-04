@@ -53,22 +53,24 @@ function storySummary(items: FeedItem[]): string {
 
 async function main() {
   const cfg = loadConfig(ROOT);
-  const items: FeedItem[] = [];
   const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
-  for (const s of cfg.sources) {
+  // Feeds are independent: fetch them together. One failure stays that source's.
+  const fetched = await Promise.all(cfg.sources.map(async (s) => {
     try {
       const payload = await httpGet(s.rss);
       const got = (s.format === 'i24_json' ? parseI24News(payload, s) : parseFeed(payload, s))
         .filter(i => { const age = Date.now() - Date.parse(i.published); return Number.isFinite(age) && age >= -300000 && age <= cfg.windowHours * 3600000; })
         .slice(0, cfg.maxArticlesPerSource);
-      items.push(...got);
       sourceHealth[s.id] = { ok: got.length > 0, items: got.length, side: s.side, name: s.name, status: got.length ? 'ok' : 'no_recent_items' };
       console.error(`${s.id}: ${got.length} items`);
+      return got;
     } catch (e) {
       sourceHealth[s.id] = { ok: false, items: 0, side: s.side, name: s.name, status: 'fetch_failed' };
       console.error(`${s.id}: FAILED ${(e as Error).message}`);
+      return [];
     }
-  }
+  }));
+  const items: FeedItem[] = fetched.flat();
   for (const it of items) {
     const rssOnly = cfg.sources.find(s => s.id === it.source)?.extraction === 'rss_only';
     const { text, status } = rssOnly ? { text: '', status: 'lead_only' as const } : await extractFulltext(it.url, it.title);
@@ -110,7 +112,7 @@ async function main() {
   for (const c of clusters) {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v7-event-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    const fingerprint=createHash('sha256').update('v7-event-verified-openrouter-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     const heldBack=!!(c as {unvalidated?:boolean}).unvalidated; // not grouped by a validated model answer: no generated summary
     if(heldBack) synthesis_status='grouping_unvalidated';
     if(!heldBack && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
