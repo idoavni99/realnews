@@ -9,7 +9,7 @@ political map. Private project, zero-billing architecture.
    fetches the RSS feeds in `sources.yaml`, extracts article full text from the
    public article pages (never behind a paywall), clusters articles into
    stories, and writes `site/data.json`.
-2. `.github/workflows/daily.yml` runs it every morning on GitHub Actions and
+2. `.github/workflows/daily.yml` runs it at 09:00 and 21:00 Israel time on GitHub Actions and
    commits the refreshed `data.json`.
 3. `site/index.html` is a static RTL page that renders the feed: headline,
    short summary, and a right/left coverage bar per story.
