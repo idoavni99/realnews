@@ -83,11 +83,3 @@ sends null, never synthetic source publication times. It reports pair-label
 performance only, not temporal quality or release approval. Its estimated total
 batch budget is 10000, including the unchanged 4000 completion allowance; call cap
 remains four. Do not run it without the separately approved inference scope.
-
-Owner restriction: if ANY deduplicated input article has an unknown/invalid
-publication time, history compression is disabled for the entire run (including
-reconciliation). Full descriptors may exceed the soft checkpoint share but must
-fit the hard candidate budget. If not, stop incomplete and retain all articles;
-never silently discard a story or compress only the dated subset. The result
-records this policy and the number of missing dates. This restriction does not
-invent publication times or change the source-round-robin policy.

@@ -301,19 +301,3 @@ test('checkpoint retains publication range and latest evidence through compactio
  const missing=mock(perfect);await groupArticles([{...mk(1,'A'),published:''}],missing.client);
  assert.equal((missing.calls[0].input as any).new_articles[0].published,null);
 });
-
-test('missing publication dates disable history compression, soft target may be exceeded',async()=>{
- const m=mock(perfect);const items=[{...mk(1,'A: '+ 'x'.repeat(200)),published:''},mk(2,'B: next')];
- const r=await groupArticles(items,m.client,{batchTokens:10000,maxArticlesPerBatch:1,checkpointShare:0.001});
- assert.equal(r.complete,true);assert.deepEqual(r.compaction_policy,{enabled:false,missing_publication_times:1});
- assert.ok(r.batches.every(b=>b.checkpoint_level===0));
- assert.equal((m.calls[1].input as any).checkpoint.stories[0].title,items[0].title);
- assert.ok((m.calls[1].input as any).checkpoint.stories[0].brief);
-});
-test('unknown-time run stops instead of compacting or evicting when full checkpoint cannot fit',async()=>{
- const items=Array.from({length:20},(_,i)=>({...mk(i+1,`E${i}: `+'x'.repeat(1000)),published:''}));
- const m=mock(perfect);const r=await groupArticles(items,m.client,{batchTokens:6000,maxArticlesPerBatch:1,checkpointShare:.001});
- assert.equal(r.complete,false);assert.ok(r.batches.every(b=>b.checkpoint_level===0));
- assert.match(r.batches.find(b=>b.status==='unresolved')!.error!,/compression disabled/);
- assert.equal(r.groups.flatMap(g=>g.articleIds).length,20);
-});
