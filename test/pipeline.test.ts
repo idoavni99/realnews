@@ -208,3 +208,33 @@ test('same generic accident wording across outlets with different locations stay
  const b={...a,source:'other',title:'תאונת דרכים בגניגר שלושה פצועים',url:'https://other.example/g'};
  assert.equal(clusterItems([a,b]).length,2);
 });
+
+import { weightedCoverage, groupOf } from '../src/config.ts';
+test('weighted coverage: half weights go to the side and to center; counts stay actual', () => {
+  const c = weightedCoverage({ left: 2, center_left: 2, center: 1, center_right: 1, right: 1 });
+  assert.deepEqual(c, { left: 3, center: 2.5, right: 1.5, denominator: 7 });
+  assert.equal(c.left + c.center + c.right, c.denominator);
+  // 7 weighted points from 7 articles: weights sum to article count
+});
+test('weighted coverage ignores unknown and absent labels', () => {
+  assert.deepEqual(weightedCoverage({ unknown: 3, bogus: 2 }), { left: 0, center: 0, right: 0, denominator: 0 });
+  assert.deepEqual(weightedCoverage({}), { left: 0, center: 0, right: 0, denominator: 0 });
+  assert.deepEqual(weightedCoverage({ center_right: 1 }), { left: 0, center: 0.5, right: 0.5, denominator: 1 });
+});
+test('center_left/center_right are valid owner labels and group by raw label', () => {
+  assert.equal(normalizeSide('center_left'), 'center_left');
+  assert.equal(normalizeSide('center-left'), 'unknown');
+  assert.equal(groupOf('center_left'), 'left');
+  assert.equal(groupOf('center_right'), 'right');
+  assert.equal(groupOf('center'), 'center');
+  assert.equal(groupOf('unknown'), null);
+});
+test('synthesis attribution accepts center_left articles under the left group only', () => {
+  const mk = (side: string, t: string) => ({ source: 's', sourceName: 's', side, title: t, url: 'u', summary: t, published: '' }) as any;
+  const items = [mk('left', 'א'), mk('center_left', 'ב'), mk('right', 'ג')];
+  const ok = { sides: { left: { summary: [{ text: 'ב', article_ids: [0, 1] }] }, center: { summary: [] }, right: { summary: [] } } };
+  assert.doesNotThrow(() => validateSynthesis(ok, items));
+  const bad = { sides: { left: { summary: [] }, center: { summary: [{ text: 'ב', article_ids: [1] }] }, right: { summary: [] } } };
+  assert.throws(() => validateSynthesis(bad, items));
+  assert.equal(synthesisInput(items)[1].side, 'left');
+});

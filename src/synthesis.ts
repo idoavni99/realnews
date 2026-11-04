@@ -1,3 +1,4 @@
+import { groupOf } from './config.ts';
 import type { FeedItem } from './rss.ts';
 import { asClient, type LlmClient } from './llm.ts';
 
@@ -8,7 +9,7 @@ export interface StorySynthesis {
 
 /** Models see only public news text, never keys or account information. */
 export function synthesisInput(items: FeedItem[]) {
-  return items.map((a, i) => ({ id: i, source: a.sourceName, side: a.side,
+  return items.map((a, i) => ({ id: i, source: a.sourceName, side: groupOf(a.side) ?? a.side,
     title: a.title, published: a.published,
     evidence: (a.fulltext || a.summary).slice(0, 4000),
     access: a.extraction || 'lead_only' }));
@@ -36,7 +37,7 @@ export function validateSynthesis(value: unknown, items: FeedItem[]): StorySynth
     for (const row of rows) {
       if (typeof row.text !== 'string' || !row.text.trim() || row.text.length > 650 ||
         !Array.isArray(row.article_ids) || !row.article_ids.length ||
-        row.article_ids.some(id => !Number.isInteger(id) || !items[id] || (side && items[id].side !== side))) {
+        row.article_ids.some(id => !Number.isInteger(id) || !items[id] || (side && groupOf(items[id].side) !== side))) {
         throw new Error('Invalid synthesis citation');
       }
       const evidence=row.article_ids.map(id => items[id].title+' '+(items[id].fulltext||items[id].summary)).join(' ');
@@ -50,7 +51,7 @@ export function validateSynthesis(value: unknown, items: FeedItem[]): StorySynth
   if (Object.keys(v).some(k=>k!=='sides')) throw new Error('Unexpected synthesis field');
   for (const side of ['left','center','right'] as const) {
     check(v.sides[side]?.summary, side);
-    if (!items.some(a => a.side === side) && v.sides[side].summary.length) throw new Error('Absent side');
+    if (!items.some(a => groupOf(a.side) === side) && v.sides[side].summary.length) throw new Error('Absent side');
   }
   return v;
 }

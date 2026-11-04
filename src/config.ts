@@ -4,7 +4,7 @@ import { join } from 'node:path';
 export interface Source {
   id: string;
   name: string;
-  side: 'right' | 'center' | 'left' | 'unknown';
+  side: 'right' | 'center_right' | 'center' | 'center_left' | 'left' | 'unknown';
   rss: string;
   extraction?: 'rss_only';
   format?: 'i24_json';
@@ -16,9 +16,32 @@ export interface Config {
   maxArticlesPerSource: number;
 }
 
-export const CONFIRMED_SIDES = ['right', 'center', 'left'] as const;
+export const CONFIRMED_SIDES = ['right', 'center_right', 'center', 'center_left', 'left'] as const;
 export type Side = typeof CONFIRMED_SIDES[number];
 const VALID_SIDES = new Set<string>([...CONFIRMED_SIDES, 'unknown']);
+/** Feed/summary groups. Group membership follows the raw owner label. */
+export type Group = 'left' | 'center' | 'right';
+export const GROUPS: readonly Group[] = ['left', 'center', 'right'];
+export function groupOf(side: string): Group | null {
+  if (side === 'left' || side === 'center_left') return 'left';
+  if (side === 'right' || side === 'center_right') return 'right';
+  if (side === 'center') return 'center';
+  return null;
+}
+/** Coverage weight: center_left = 0.5 left + 0.5 center, center_right = 0.5 right + 0.5 center. */
+const WEIGHTS: Record<string, Partial<Record<Group, number>>> = {
+  left: { left: 1 }, center: { center: 1 }, right: { right: 1 },
+  center_left: { left: 0.5, center: 0.5 }, center_right: { right: 0.5, center: 0.5 },
+};
+/** Weighted coverage from actual per-raw-side article counts. Denominator = sum of weights = articles with a confirmed, monitored label. */
+export function weightedCoverage(counts: Record<string, number>): { left: number; center: number; right: number; denominator: number } {
+  const out = { left: 0, center: 0, right: 0, denominator: 0 };
+  for (const [side, n] of Object.entries(counts)) {
+    const w = WEIGHTS[side]; if (!w) continue;
+    for (const g of GROUPS) { out[g] += (w[g] ?? 0) * n; out.denominator += (w[g] ?? 0) * n; }
+  }
+  return out;
+}
 /** Owner-typo guard: an unrecognized side is treated as unknown (never as a new side). */
 export function normalizeSide(s: string): Source['side'] {
   return (VALID_SIDES.has(s) ? s : 'unknown') as Source['side'];

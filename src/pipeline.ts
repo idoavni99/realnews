@@ -12,7 +12,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, CONFIRMED_SIDES } from './config.ts';
+import { loadConfig, CONFIRMED_SIDES, weightedCoverage } from './config.ts';
 import { httpGet, sleep } from './http.ts';
 import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
@@ -142,7 +142,8 @@ async function main() {
       summary: storySummary(c.items), // Existing source text, never a generated event summary.
       synthesis, synthesis_status, caveats: accessCaveats(c.items),
       ...(grouping?{grouping_status:heldBack?'unvalidated':'model_validated'}:{}),
-      counts,
+      counts, // actual article counts per raw owner label
+      coverage_weighted: weightedCoverage(counts), // weighted shares, not article counts
       total: c.items.length,
       articles: c.items.map((i) => ({
         source: i.sourceName, side: i.side, title: i.title, url: i.url,
