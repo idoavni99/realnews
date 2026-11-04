@@ -12,6 +12,10 @@ on:
         description: Enable bounded free synthesis and verification
         type: boolean
         default: false
+      grouping:
+        description: Use model-led batched grouping (needs synthesis on; staged only unless publish)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -36,6 +40,7 @@ jobs:
       - name: Run pipeline
         env:
           REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
+          REALNEWS_GROUPING: ${{ inputs.grouping && 'model' || 'lexical' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node src/pipeline.ts
       - name: Preserve staged output

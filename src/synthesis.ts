@@ -1,4 +1,5 @@
 import type { FeedItem } from './rss.ts';
+import { asClient, type LlmClient } from './llm.ts';
 
 export interface CitedText { text: string; article_ids: number[] }
 export interface StorySynthesis {
@@ -64,18 +65,9 @@ const rows = {type:'ARRAY',items:cited};
 const side = {type:'OBJECT',properties:{summary:rows},required:['summary']};
 export const SYNTHESIS_SCHEMA = {type:'OBJECT',properties:{sides:{type:'OBJECT',properties:{left:side,center:side,right:side},required:['left','center','right']}},required:['sides']};
 
-export async function synthesizeStory(items: FeedItem[], key: string): Promise<StorySynthesis> {
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent', {
-    method: 'POST', headers: {'Content-Type':'application/json','x-goog-api-key':key},
-    body: JSON.stringify({systemInstruction:{parts:[{text:SYNTHESIS_INSTRUCTIONS}]},contents:[{parts:[{text:JSON.stringify(synthesisInput(items))}]}],generationConfig:{temperature:0.1,responseMimeType:'application/json',responseSchema:SYNTHESIS_SCHEMA,maxOutputTokens:3000}}),
-    signal: AbortSignal.timeout(90000),
-  });
-  if (!r.ok) throw new Error(`Synthesis HTTP ${r.status}: ${(await r.text()).slice(0,1000)}`);
-  const d = await r.json();
-  const text = d.candidates?.[0]?.content?.parts?.filter((p: {text?:string;thought?:boolean})=>p.text && !p.thought).map((p:{text:string})=>p.text).join('');
-  if (!text) throw new Error('Empty synthesis');
-  const parsed = JSON.parse(text);
-  return validateSynthesis(parsed, items);
+export async function synthesizeStory(items: FeedItem[], llm: LlmClient | string): Promise<StorySynthesis> {
+  const { json } = await asClient(llm).generateJson({ label: 'Synthesis', system: SYNTHESIS_INSTRUCTIONS, input: synthesisInput(items), schema: SYNTHESIS_SCHEMA, temperature: 0.1, maxOutputTokens: 3000 });
+  return validateSynthesis(json, items);
 }
 
 /** Evidence access is known metadata, not a model language-generation task. */

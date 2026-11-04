@@ -16,7 +16,9 @@ import { loadConfig, CONFIRMED_SIDES } from './config.ts';
 import { httpGet, sleep } from './http.ts';
 import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
-import { clusterItems } from './cluster.ts';
+import { clusterItems, type Cluster } from './cluster.ts';
+import { createLlmClient } from './llm.ts';
+import { groupArticles, type GroupingResult } from './grouping.ts';
 import { verifyCandidates } from './verification.ts';
 import { createHash } from 'node:crypto';
 import { synthesizeStory, accessCaveats, synthesisInput, validateSynthesis, type StorySynthesis } from './synthesis.ts';
@@ -80,7 +82,22 @@ async function main() {
       .map((h) => h.side),
   )].sort();
   const stories: Story[] = [];
-  const clusters=clusterItems(items).sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published)).slice(0,30);
+  const llm=createLlmClient(process.env);
+  // Model-led grouping (batches + compaction) is opt-in and needs both flags plus a configured provider.
+  // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
+  let grouping:GroupingResult|undefined;
+  let rawClusters:Cluster[];
+  if(llm && process.env.REALNEWS_SYNTHESIS_ENABLED==='true' && process.env.REALNEWS_GROUPING==='model') {
+    grouping=await groupArticles(items,llm,{
+      delayMs:Number(process.env.REALNEWS_LLM_DELAY_MS??5000),
+      maxCalls:Number(process.env.REALNEWS_GROUPING_MAX_CALLS??30),
+      batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS??6000),
+      reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
+    });
+    rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:g.items}));
+    console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
+  } else rawClusters=clusterItems(items);
+  const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published)).slice(0,30);
   const cacheDir=join(ROOT,'.cache'); mkdirSync(cacheDir,{recursive:true});
   const cachePath=join(cacheDir,'synthesis.json');
   let cache: Record<string,StorySynthesis>={};
@@ -96,14 +113,14 @@ async function main() {
     const fingerprint=createHash('sha256').update('v7-event-verified-gemini-3.5-flash-lite'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     if(process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
     const audit:{story:number;fingerprint:string;evidence:ReturnType<typeof synthesisInput>;draft?:StorySynthesis;verdicts?:unknown;error?:string;status?:string}={story:stories.length,fingerprint,evidence:synthesisInput(c.items)};
-    if(!synthesis && process.env.GEMINI_API_KEY && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
+    if(!synthesis && llm && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
       synthesis_status='unavailable';
       if(!unavailable && calls+2<=maxCalls) {
         calls++;
         try {
-          const draft=await synthesizeStory(c.items,process.env.GEMINI_API_KEY); audit.draft=draft;
+          const draft=await synthesizeStory(c.items,llm); audit.draft=draft;
           calls++;
-          const verdicts=await verifyCandidates(c.items,[{id:'summary',summary:draft}],process.env.GEMINI_API_KEY);
+          const verdicts=await verifyCandidates(c.items,[{id:'summary',summary:draft}],llm);
           audit.verdicts=verdicts;
           if(!verdicts[0]?.supported) throw new Error('Verification rejected summary');
           synthesis=draft; synthesis_status='ready';
@@ -138,7 +155,7 @@ async function main() {
     source_health: sourceHealth,
     stories: stories.slice(0, 30),
   };
-  writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,stories:review},null,2));
+  writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,stories:review},null,2));
   writeFileSync(cachePath,JSON.stringify(nextCache));
   const dest = join(ROOT, 'site', 'data.json');
   writeFileSync(dest, JSON.stringify(out, null, 1));
