@@ -52,6 +52,7 @@ export interface GroupingResult {
   groups: Group[]; batches: BatchRecord[]; calls: number;
   /** false if ANY article stayed unvalidated or an enabled reconcile step did not finish. Never present a false run as complete grouping. */
   complete: boolean; unvalidated_articles: number;
+  compaction_policy: { enabled:boolean; missing_publication_times:number };
   reconcile?: { status: 'ok' | 'rejected' | 'unavailable' | 'skipped'; merges: { keep: string; absorb: string[] }[]; usage?: Record<string,unknown>; diagnostics?: LlmDiagnostics; error?: string };
 }
 
@@ -134,9 +135,10 @@ const lead = (it: FeedItem, n: number) => (it.fulltext || it.summary || '').repl
  * `soft` is the preferred size; `hard` is the largest size that still leaves room for the call to work.
  * If level 2 still exceeds `hard`, `fits` is false and the caller must stop semantic grouping.
  */
-export function compactCheckpoint(stories: StoryState[], soft: number, hard: number = soft): { stories: CkStory[]; level: 0 | 1 | 2; fits: boolean } {
+export function compactCheckpoint(stories: StoryState[], soft: number, hard: number = soft, allowCompaction = true): { stories: CkStory[]; level: 0 | 1 | 2; fits: boolean } {
   const size = (x: CkStory[]) => estTokens(JSON.stringify(x));
   const full: CkStory[] = stories.map(s => ({ id: s.id, title: s.title, brief: s.brief, count: s.members.length, published_from:s.published_from, published_to:s.published_to, latest:s.latest }));
+  if (!allowCompaction) return {stories:full,level:0,fits:size(full)<=hard};
   if (size(full) <= soft) return { stories: full, level: 0, fits: true };
   const noBrief: CkStory[] = full.map(({ brief: _b, ...r }) => r);
   if (size(noBrief) <= soft) return { stories: noBrief, level: 1, fits: true };
@@ -152,6 +154,11 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
   // Dedup by canonical URL, keep all originals addressable by stable id.
   const byId = new Map<string, FeedItem>();
   for (const it of items) { const id = articleId(it.url); if (!byId.has(id)) byId.set(id, it); }
+  // Owner policy: unknown dates disable all checkpoint compression for this run,
+  // including reconciliation. Keep full descriptors even above soft target; stop
+  // incomplete if they cannot fit the hard budget. Never evict stories.
+  const missingDates=[...byId.values()].filter(it=>publication(it.published)===null).length;
+  const allowCompaction=missingDates===0;
   const queue = sourceRoundRobin([...byId.values()]).map(it => articleId(it.url));
   const stories: StoryState[] = [];
   let nextStory = 1; let calls = 0; let stopped = !llm;
@@ -170,7 +177,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     const payloadFor = (ids:string[], checkpoint:CkStory[]) => ({checkpoint:{stories:checkpoint},new_articles:ids.map(row)});
     const reserve = (ids:string[]) => Math.max(cfg.maxOutputTokens, OUT_BASE + OUT_PER_ARTICLE*ids.length);
     const hard = cfg.batchTokens - fixed(one) - reserve(one) - estTokens(JSON.stringify(payloadFor(one, [])));
-    const ck = compactCheckpoint(stories, Math.min(softCk,hard), hard);
+    const ck = compactCheckpoint(stories, Math.min(softCk,hard), hard, allowCompaction);
     const totalFor = (ids:string[]) => fixed(ids) + estTokens(JSON.stringify(payloadFor(ids,ck.stories))) + reserve(ids);
     const take:string[]=[];
     if(ck.fits) {
@@ -185,7 +192,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     const rec: BatchRecord = { index:batches.length, article_ids:take, est_tokens:ck.fits?totalFor(take):totalFor(one), est_output_reserve:reserve(take), checkpoint_level:ck.level, checkpoint_story_ids:ck.stories.map(s=>s.id), status:'ok' };
     batches.push(rec);
     if (!ck.fits) {
-      rec.status = 'unresolved'; rec.error = 'checkpoint index cannot fit the token budget even at the shortest form; semantic grouping stopped, remaining articles left ungrouped';
+      rec.status = 'unresolved'; rec.error = allowCompaction ? 'checkpoint index cannot fit the token budget even at the shortest form; semantic grouping stopped, remaining articles left ungrouped' : 'full checkpoint cannot fit token budget; compression disabled because publication times are missing; remaining articles left ungrouped';
       stopped = true; markUnvalidated(take); take.forEach(singleton); continue;
     }
     if (stopped || calls >= cfg.maxCalls) { rec.status = stopped ? 'unavailable' : 'skipped'; if (!stopped) rec.error = 'call cap reached'; markUnvalidated(take); take.forEach(singleton); continue; }
@@ -225,7 +232,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
   if (cfg.reconcile) {
     reconcile = { status: 'skipped', merges: [] };
     const rBudget = cfg.batchTokens - estTokens(RECONCILE_INSTRUCTIONS) - estTokens(JSON.stringify(RECONCILE_SCHEMA)) - 1540; // requested completion + wrapper reserve
-    const ck = compactCheckpoint(stories, rBudget);
+    const ck = compactCheckpoint(stories, rBudget, rBudget, allowCompaction);
     if (!llm || stopped || calls >= cfg.maxCalls) reconcile.error = 'unavailable or call cap';
     else if (unvalidated.size) reconcile.error = 'grouping incomplete (unvalidated articles); not reconciled';
     else if (!ck.fits) reconcile.error = 'story descriptors exceed token budget; not reconciled';
@@ -249,7 +256,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: members.map(m => byId.get(m)!), grouping: members.some(m => unvalidated.has(m)) ? 'unvalidated' : 'schema_assigned' } as Group;
   });
   const complete = unvalidated.size === 0 && (!cfg.reconcile || stories.length <= 1 || reconcile?.status === 'ok');
-  return { groups, batches, calls, reconcile, complete, unvalidated_articles: unvalidated.size };
+  return { groups, batches, calls, reconcile, complete, unvalidated_articles: unvalidated.size, compaction_policy:{enabled:allowCompaction,missing_publication_times:missingDates} };
 }
 
 export function validateAssignments(value: unknown, sent: string[], knownStories: Set<string>): Map<string, { story_id?: string; new_key?: string }> {
