@@ -214,3 +214,11 @@ test('schema-valid assignment is not semantic event validation: captured false m
     assert.notEqual(r.groups[0].grouping, 'event_verified');
   }
 });
+
+test('article batch cap is independent of completion allowance',async()=>{
+ const items=Array.from({length:10},(_,i)=>mk(i+1,`E${i}: title`));
+ const m=mock(perfect);
+ const r=await groupArticles(items,m.client,{batchTokens:6000,maxOutputTokens:2000,maxArticlesPerBatch:5,maxCalls:2});
+ assert.equal(r.calls,2);assert.deepEqual(r.batches.map(b=>b.article_ids.length),[5,5]);
+ assert.ok(m.calls.every(c=>c.maxOutputTokens===2000));
+});

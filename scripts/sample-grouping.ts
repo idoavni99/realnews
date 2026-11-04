@@ -8,7 +8,7 @@ const pairs=[...positives.map((x:any)=>({id:x.id,expected:true,articles:[x.a,x.b
 const key=process.env.OPENROUTER_API_KEY;if(!key)throw new Error('OPENROUTER_API_KEY required. Never put the key in command arguments.');
 // Two batches, with one member of each pair per batch. Stable ordering makes cross-batch evaluation reproducible.
 const items=[0,1].flatMap(turn=>pairs.map((p:any,i:number)=>({...p.articles[turn],sourceName:p.articles[turn].source,published:new Date(Date.UTC(2026,10,4,turn,i)).toISOString()})));
-const r=await groupArticles(items,createOpenRouterClient(key,'openrouter/free'),{batchTokens:6000,maxOutputTokens:400,maxCalls:2,delayMs:5000});
+const r=await groupArticles(items,createOpenRouterClient(key,'openrouter/free'),{batchTokens:6000,maxOutputTokens:2000,maxArticlesPerBatch:5,maxCalls:Number(process.env.SAMPLE_MAX_CALLS||2),delayMs:5000});
 const judgments=pairs.map((p:any)=>{
  const ids=p.articles.map((a:any)=>articleId(a.url));const gs=ids.map((id:string)=>r.groups.find(g=>g.articleIds.includes(id))!);
  const eligible=gs.every((g:any)=>g.grouping==='schema_assigned');

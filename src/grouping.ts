@@ -26,6 +26,8 @@ export interface GroupingConfig {
   leadChars: number;
   /** Hard cap on model calls for grouping (and reconciliation). */
   maxCalls: number;
+  /** Optional independent article cap; never shrink completion budget just to force batches. */
+  maxArticlesPerBatch?: number;
   /** maxOutputTokens requested for each grouping call. */
   maxOutputTokens: number;
   /** Pause between calls (rate limit), ms. */
@@ -125,6 +127,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     const take: string[] = []; let used = 0;
     if (ck.fits) {
       while (queue.length) {
+        if (take.length >= (cfg.maxArticlesPerBatch ?? Infinity)) break;
         const cost = rowCost(queue[0]) + OUT_PER_ARTICLE;
         if (take.length && (used + cost > room || (take.length + 1) * OUT_PER_ARTICLE + OUT_BASE > cfg.maxOutputTokens / 2)) break;
         used += cost; take.push(queue.shift()!);
