@@ -51,3 +51,10 @@ test('number beyond exact model evidence prefix is rejected before verification'
  const r=await evaluateSummary([article],{async generateJson(){return {json:d};}});
  assert.equal(r.status,'error');assert.equal(r.phase,'synthesis');assert.match(r.error!,/Unsupported number/);assert.equal(r.calls.length,1);
 });
+test('summary prompt states the same active token ceiling as the request without changing output contract',async()=>{
+ const {synthesizeStory,SYNTHESIS_OUTPUT_TOKENS}=await import('../src/synthesis.ts');let request:any;
+ const value={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[]}}};
+ await synthesizeStory(items,{async generateJson(req){request=req;return {json:value};}});
+ assert.equal(request.maxOutputTokens,3000);assert.equal(request.maxOutputTokens,SYNTHESIS_OUTPUT_TOKENS);
+ assert.ok(request.system.includes(`${request.maxOutputTokens} tokens`));assert.match(request.system,/including any reasoning/);assert.match(request.system,/one complete JSON object only/);assert.match(request.system,/Do not generate a headline/);
+});

@@ -69,8 +69,10 @@ const rows = {type:'ARRAY',items:cited};
 const side = {type:'OBJECT',properties:{summary:rows},required:['summary']};
 export const SYNTHESIS_SCHEMA = {type:'OBJECT',properties:{sides:{type:'OBJECT',properties:{left:side,center:side,right:side},required:['left','center','right']}},required:['sides']};
 
+export const SYNTHESIS_OUTPUT_TOKENS=3000;
+
 export async function synthesizeStory(items: FeedItem[], llm: LlmClient | string): Promise<StorySynthesis> {
-  const { json } = await asClient(llm).generateJson({ label: 'Synthesis', system: SYNTHESIS_INSTRUCTIONS, input: synthesisInput(items), schema: SYNTHESIS_SCHEMA, temperature: 0.1, maxOutputTokens: 3000 });
+  const { json } = await asClient(llm).generateJson({ label: 'Synthesis', system: SYNTHESIS_INSTRUCTIONS+`\nYour maximum completion budget is ${SYNTHESIS_OUTPUT_TOKENS} tokens, including any reasoning and the JSON answer. Plan a concise answer that fits. Return one complete JSON object only, with short per-side claims and valid citations. No explanations outside JSON. Never omit required fields or truncate JSON to fit.`, input: synthesisInput(items), schema: SYNTHESIS_SCHEMA, temperature: 0.1, maxOutputTokens: SYNTHESIS_OUTPUT_TOKENS });
   return validateSynthesis(json, items);
 }
 
