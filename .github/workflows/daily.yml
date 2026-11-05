@@ -67,7 +67,7 @@ jobs:
           name: private-review-evidence
           path: |
             .review/evidence.json
-            .review/calls.jsonl
+            .review/calls.json
             .review/grouping.json
             .review/articles.json
           retention-days: 1

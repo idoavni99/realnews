@@ -45,3 +45,9 @@ test('production pacing is two seconds and rate-limit errors still stop later ca
  assert.match(pipeline,/await sleep\(2000\)/);assert.ok(!pipeline.includes('await sleep(10000)'));
  assert.ok(pipeline.includes('if(/HTTP (429|503|403)/.test'));
 });
+test('number beyond exact model evidence prefix is rejected before verification',async()=>{
+ const article={...items[0],title:'כותרת',fulltext:'א'.repeat(4100)+' 987654'};
+ const d={sides:{left:{summary:[]},center:{summary:[]},right:{summary:[{text:'987654',article_ids:[0]}]}}};
+ const r=await evaluateSummary([article],{async generateJson(){return {json:d};}});
+ assert.equal(r.status,'error');assert.equal(r.phase,'synthesis');assert.match(r.error!,/Unsupported number/);assert.equal(r.calls.length,1);
+});
