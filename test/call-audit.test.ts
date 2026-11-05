@@ -33,3 +33,8 @@ test('workflow retains cancellation journal and grouping checkpoint as private e
  const pipeline=readFileSync(new URL('../src/pipeline.ts',import.meta.url),'utf8');
  assert.ok(pipeline.indexOf("writeFileSync(join(reviewDir,'grouping.json')")<pipeline.indexOf('const clusters='));
 });
+
+test('pipeline initializes private review directory before journal client',()=>{
+ const pipeline=readFileSync(new URL('../src/pipeline.ts',import.meta.url),'utf8');
+ assert.ok(pipeline.indexOf('const reviewDir=')<pipeline.indexOf('const llm=provider?auditedClient'));
+});

@@ -97,6 +97,7 @@ async function main() {
       .map((h) => h.side),
   )].sort();
   const stories: Story[] = [];
+  const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
   const provider=createLlmClient(process.env);
   const callAudit:unknown[]=[];
   // Persist before/after every attempted call, including failed validation and cancellation.
@@ -119,7 +120,6 @@ async function main() {
   try { if(existsSync(cachePath)) cache=JSON.parse(readFileSync(cachePath,'utf8')); } catch { console.error('Ignoring invalid synthesis cache'); }
   const nextCache:Record<string,StorySynthesis>={};
   const review:unknown[]=[];
-  const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
   let calls=0, unavailable=false;
   const maxCalls=policy.maxCalls; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
   for (const c of clusters) {
