@@ -187,9 +187,9 @@ test('final sides-only model and verifier contract accepts evidence and fails cl
    assert.equal(body.model,'openrouter/auto');
    assert.deepEqual(body.response_format.json_schema.schema.required,['sides']);
    assert.equal(body.response_format.json_schema.schema.type,'object');
-   return reply(value);
+   return reply({sides:{left:'ראש הממשלה נפגש עם השר',center:'',right:''}});
   };
-  assert.deepEqual(await synthesizeStory(items,'test-not-a-key'),value);
+  assert.deepEqual(await synthesizeStory(items,'test-not-a-key'),{sides:{left:{summary:[{text:'ראש הממשלה נפגש עם השר',article_ids:[0],evidence_kind:'side_membership'}]},center:{summary:[]},right:{summary:[]}}});
   globalThis.fetch=async()=>reply({verdicts:[{id:'summary',supported:false,reasons:['Unsupported attribution']}]});
   assert.equal((await verifyCandidates(items,[{id:'summary',summary:value}],'test-not-a-key'))[0].supported,false);
   globalThis.fetch=async()=>reply({verdicts:[]});
