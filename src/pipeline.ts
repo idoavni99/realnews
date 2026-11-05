@@ -62,7 +62,7 @@ async function main() {
     maxCalls:Number(process.env.REALNEWS_GROUPING_MAX_CALLS??30),
     batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS??24000),
     maxArticlesPerBatch:Number(process.env.REALNEWS_GROUPING_MAX_ARTICLES??6),
-    maxOutputTokens:Number(process.env.REALNEWS_GROUPING_OUTPUT_TOKENS??4000),
+    outputTokensPerArticle:Number(process.env.REALNEWS_GROUPING_OUTPUT_TOKENS_PER_ARTICLE??1500),
     reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
   });
   const cfg = loadConfig(ROOT);

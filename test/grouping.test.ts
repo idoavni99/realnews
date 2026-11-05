@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupArticles, articleId, GROUPING_INSTRUCTIONS, GROUPING_SCHEMA, compactCheckpoint, estTokens, groupingSchema, validateAssignments, validateMerges } from '../src/grouping.ts';
+import { validateGroupingConfig, groupArticles, articleId, GROUPING_INSTRUCTIONS, GROUPING_SCHEMA, compactCheckpoint, estTokens, groupingSchema, validateAssignments, validateMerges } from '../src/grouping.ts';
 import type { LlmClient, LlmRequest } from '../src/llm.ts';
 import type { FeedItem } from '../src/rss.ts';
 
@@ -318,4 +318,80 @@ test('110 distinct articles retain every checkpoint ID within bounded full-feed 
  assert.equal(r.complete,true);assert.equal(r.groups.length,110);assert.ok(r.calls<=30);
  assert.ok(r.batches.every(b=>b.est_tokens<=24000&&b.article_ids.length<=6));
  let known=0;for(const b of r.batches){assert.equal(b.checkpoint_story_ids.length,known);known+=b.article_ids.length;}
+});
+
+import { LlmOutputError } from '../src/llm.ts';
+const grp = { batchTokens: 8000, maxArticlesPerBatch: 2, checkpointShare: 0.3, leadChars: 200 };
+const six = () => [1, 2, 3, 4, 5, 6].map(n => mk(n, `E${n}: ${n}`, 'ynet', 'x'.repeat(200)));
+
+const TRUNC = () => new LlmOutputError('Truncated Grouping: output token limit', { requested_model: 'm', finish_reason: 'length', content_chars: 0 });
+const idsOf = (c: any) => (c.input as any).new_articles.map((a: any) => a.id) as string[];
+
+test('truncated batch fails closed, is not retried, later batches still run', async () => {
+  const m = mock((i, c) => c === 2 ? TRUNC() : perfect(i));
+  const r = await groupArticles(six(), m.client, grp);
+  assert.equal(m.calls.length, 3, 'one call per batch, no retry or split');
+  assert.deepEqual(r.batches.map(b => b.status), ['ok', 'rejected', 'ok']);
+  assert.equal(r.batches[1].failure, 'truncated');
+  assert.equal(r.complete, false);
+  assert.equal(r.unvalidated_articles, 2);
+  assert.equal(r.groups.reduce((n, g) => n + g.items.length, 0), 6, 'no article lost');
+});
+
+test('output ceiling is tokens-per-article times NEW articles sent; checkpoint stories are not counted', async () => {
+  const items = [1, 2, 3, 4, 5].map(n => mk(n, `E${n}: ${n}`, 'ynet', 'x'.repeat(100)));
+  const m = mock(perfect);
+  const r = await groupArticles(items, m.client, { batchTokens: 100000, maxArticlesPerBatch: 2, outputTokensPerArticle: 1500, checkpointShare: 0.3, leadChars: 100 });
+  assert.equal(r.complete, true);
+  assert.deepEqual(m.calls.map(c => idsOf(c).length), [2, 2, 1]);
+  assert.deepEqual(m.calls.map(c => c.maxOutputTokens), [3000, 3000, 1500]);
+  assert.ok(((m.calls[2].input as any).checkpoint.stories as any[]).length > 0, 'later call carries checkpoint stories');
+  assert.deepEqual(r.batches.map(b => b.est_output_reserve), [3000, 3000, 1500]);
+});
+
+test('scaled budget: 6 articles get 9000 and the batch token budget includes that reserve', async () => {
+  const items = six();
+  const a = mock(perfect);
+  await groupArticles(items, a.client, { batchTokens: 100000, maxArticlesPerBatch: 6, outputTokensPerArticle: 1500, leadChars: 200 });
+  assert.equal(a.calls[0].maxOutputTokens, 9000);
+  const b = mock(perfect);
+  const r = await groupArticles(items, b.client, { batchTokens: 7000, maxArticlesPerBatch: 6, outputTokensPerArticle: 1500, leadChars: 200 });
+  assert.ok(b.calls.every(c => c.maxOutputTokens === 1500 * idsOf(c).length));
+  assert.ok(b.calls.length > 1, 'a smaller batch budget lowers articles per call because the reserve scales');
+  assert.equal(r.groups.reduce((n, g) => n + g.items.length, 0), 6);
+});
+
+test('invalid outputTokensPerArticle is rejected before any call', () => {
+  for (const v of [0, -1, NaN, 100, 1.5, Infinity]) assert.throws(() => validateGroupingConfig({ outputTokensPerArticle: v as number }), /outputTokensPerArticle/);
+});
+
+test('content_filter batch is recorded, never retried or resent, later batches run', async () => {
+  const m = mock((i, c) => c === 1 ? new LlmOutputError('Empty Grouping', { requested_model: 'm', finish_reason: 'content_filter', native_finish_reason: 'content_filter', content_chars: 0 }) : perfect(i));
+  const r = await groupArticles(six(), m.client, grp);
+  assert.equal(m.calls.length, 3);
+  const sent = m.calls.map(c => JSON.stringify((c.input as any).new_articles.map((a: any) => a.id)));
+  assert.equal(new Set(sent).size, 3, 'filtered batch content was not sent again');
+  assert.equal(r.batches[0].status, 'rejected');
+  assert.equal(r.batches[0].failure, 'content_filter');
+  assert.equal(r.complete, false);
+});
+
+test('invalid JSON is a per-batch failure; HTTP 429 and unknown transport errors still stop the run', async () => {
+  const a = await groupArticles(six(), mock((i, c) => c === 1 ? new LlmOutputError('Invalid JSON Grouping', { requested_model: 'm', content_chars: 5 }) : perfect(i)).client, grp);
+  assert.deepEqual(a.batches.map(b => b.status), ['rejected', 'ok', 'ok']);
+  assert.equal(a.batches[0].failure, 'invalid');
+  const b = mock((i, c) => c === 1 ? new Error('Grouping HTTP 429') : perfect(i));
+  const rb = await groupArticles(six(), b.client, grp);
+  assert.equal(b.calls.length, 1);
+  assert.deepEqual(rb.batches.map(x => x.status), ['unavailable', 'unavailable', 'unavailable']);
+  const c = mock((i, n) => n === 1 ? new Error('network down') : perfect(i));
+  await groupArticles(six(), c.client, grp);
+  assert.equal(c.calls.length, 1);
+});
+
+test('call cap still applies after a recoverable failure', async () => {
+  const m = mock((i, c) => c === 1 ? new LlmOutputError('Invalid JSON Grouping', { requested_model: 'm', content_chars: 3 }) : perfect(i));
+  const r = await groupArticles(six(), m.client, { ...grp, maxCalls: 2 });
+  assert.equal(m.calls.length, 2);
+  assert.deepEqual(r.batches.map(b => b.status), ['rejected', 'ok', 'skipped']);
 });
