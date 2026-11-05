@@ -12,8 +12,14 @@ export function validateVerdicts(value:unknown,ids:string[]):Verdict[]{
  for(const x of v)if(!ids.includes(x.id)||typeof x.supported!=='boolean'||!Array.isArray(x.reasons)||x.reasons.some(t=>typeof t!=='string')||(!x.supported&&!x.reasons.length))throw new Error('Invalid verifier verdict');
  return v;
 }
+export const VERIFICATION_OUTPUT_TOKENS_PER_ARTICLE=2000;
+export function verificationOutputTokenBudget(articleCount:number):number{
+ if(!Number.isSafeInteger(articleCount)||articleCount<1||articleCount>Math.floor(Number.MAX_SAFE_INTEGER/VERIFICATION_OUTPUT_TOKENS_PER_ARTICLE))throw new Error('Invalid verifier article count');
+ return VERIFICATION_OUTPUT_TOKENS_PER_ARTICLE*articleCount;
+}
 export async function verifyCandidates(items:FeedItem[],candidates:VerificationCandidate[],llm:LlmClient|string):Promise<Verdict[]>{
- const {json}=await asClient(llm).generateJson({label:'Verification',system:VERIFICATION_INSTRUCTIONS,input:{articles:synthesisInput(items),candidates},schema:VERIFICATION_SCHEMA,temperature:0,maxOutputTokens:2000});
+ const maxOutputTokens=verificationOutputTokenBudget(items.length);
+ const {json}=await asClient(llm).generateJson({label:'Verification',system:VERIFICATION_INSTRUCTIONS,input:{articles:synthesisInput(items),candidates},schema:VERIFICATION_SCHEMA,temperature:0,maxOutputTokens});
  return validateVerdicts(json,candidates.map(c=>c.id));
 }
 // A verifier verdict is evidence, not proof. Deliberately not wired into production
