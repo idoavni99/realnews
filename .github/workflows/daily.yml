@@ -65,7 +65,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: private-review-evidence
-          path: .review/evidence.json
+          path: |
+            .review/evidence.json
+            .review/calls.jsonl
+            .review/grouping.json
           retention-days: 1
       - name: Publication quality gate
         if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)

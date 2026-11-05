@@ -18,7 +18,8 @@ import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
 import { clusterItems, type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
-import { createLlmClient, LlmOutputError, type LlmResponse, type LlmRequest } from './llm.ts';
+import { createLlmClient } from './llm.ts';
+import { auditedClient } from './call-audit.ts';
 import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import { verifyCandidates } from './verification.ts';
 import { createHash } from 'node:crypto';
@@ -98,18 +99,16 @@ async function main() {
   const stories: Story[] = [];
   const provider=createLlmClient(process.env);
   const callAudit:unknown[]=[];
-  // Record every attempted call, including validation failures in later stages.
-  const llm=provider?{async generateJson(req:LlmRequest):Promise<LlmResponse>{
-    const entry:any={stage:req.label,status:'started'}; callAudit.push(entry);
-    try {const response=await provider.generateJson(req);entry.status='returned';entry.usage=response.usage;entry.diagnostics=response.diagnostics;return response;}
-    catch(e){entry.status='failed';entry.error=(e as Error).message.slice(0,250);if(e instanceof LlmOutputError){entry.diagnostics=e.diagnostics;entry.usage=e.diagnostics?.usage;}throw e;}
-  }}:undefined;
+  // Persist before/after every attempted call, including failed validation and cancellation.
+  const llm=provider?auditedClient(provider,join(reviewDir,'calls.jsonl'),callAudit):undefined;
   // Model-led grouping is an independent opt-in; summaries are separately enabled.
   // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
   let grouping:GroupingResult|undefined;
   let rawClusters:(Cluster&{unvalidated?:boolean})[];
   if(policy.grouping) {
     grouping=await groupArticles(items,llm!,groupingConfig);
+    // Private completed grouping checkpoint, never an approval to publish.
+    writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify(grouping));
     rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:g.items,unvalidated:g.grouping==='unvalidated'}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
