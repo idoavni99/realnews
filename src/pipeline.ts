@@ -21,6 +21,7 @@ import { runPolicy } from './run-policy.ts';
 import { createLlmClient } from './llm.ts';
 import { auditedClient } from './call-audit.ts';
 import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
+import {createArticleSnapshot} from './article-snapshot.ts';
 import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import { verifyCandidates } from './verification.ts';
 import { createHash } from 'node:crypto';
@@ -100,7 +101,8 @@ async function main() {
   const stories: Story[] = [];
   const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
   const registry=articleRegistry(items);
-  writeFileSync(join(reviewDir,'articles.json'),JSON.stringify(Object.fromEntries(registry)),{mode:0o600});
+  const articleSnapshot=createArticleSnapshot(items);
+  writeFileSync(join(reviewDir,'articles.json'),JSON.stringify(articleSnapshot),{mode:0o600});
   const provider=createLlmClient(process.env);
   const callAudit:unknown[]=[];
   // Persist before/after every attempted call, including failed validation and cancellation.
@@ -112,7 +114,7 @@ async function main() {
   if(policy.grouping) {
     grouping=await groupArticles(items,llm!,groupingConfig);
     // Private completed grouping checkpoint, never an approval to publish.
-    writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify(grouping));
+    writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify({...grouping,snapshot_run_id:articleSnapshot.run_id,snapshot_sha256:articleSnapshot.content_sha256}));
     rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:resolveArticles(g.articleIds,registry),unvalidated:g.grouping==='unvalidated'}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
