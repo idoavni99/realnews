@@ -143,7 +143,7 @@ async function main() {
           synthesis=draft; synthesis_status='ready';
         }
         catch(e) { audit.error=(e as Error).message.slice(0,250); synthesis_status=/Verification rejected|Invalid|Unsupported|Unexpected/.test((e as Error).message)?'rejected':'unavailable'; console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
-        await sleep(10000); // At most 12 calls/minute including verification, below verified 15 RPM.
+        await sleep(2000); // Owner-selected per-story pacing; HTTP rate limits still stop further calls.
       }
     }
     audit.status=synthesis_status; review.push(audit);

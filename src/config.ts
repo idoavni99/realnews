@@ -71,6 +71,6 @@ export function loadConfig(root: string): Config {
   return {
     sources,
     windowHours: parseInt(opts['window_hours'] ?? '24', 10),
-    maxArticlesPerSource: parseInt(opts['max_articles_per_source'] ?? '15', 10),
+    maxArticlesPerSource: parseInt(opts['max_articles_per_source'] ?? '8', 10),
   };
 }

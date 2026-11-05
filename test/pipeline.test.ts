@@ -250,3 +250,7 @@ test('owner sources.yaml hyphen tags load as supported categories', () => {
   assert.ok(cfg.sources.length > 0);
   assert.ok(cfg.sources.every(x => x.side !== 'unknown'), 'no owner-tagged source should load as unknown: ' + cfg.sources.filter(x => x.side === 'unknown').map(x => x.id));
 });
+
+test('owner per-source ingestion cap is eight',()=>{
+ assert.equal(loadConfig(new URL('..',import.meta.url).pathname).maxArticlesPerSource,8);
+});
