@@ -30,6 +30,9 @@ export interface GroupingConfig {
   maxArticlesPerBatch?: number;
   /** maxOutputTokens requested for each grouping call. */
   maxOutputTokens: number;
+  /** When set, each call's output ceiling is this many tokens times the number of NEW articles sent in that call
+   *  (checkpoint story descriptors are not counted); maxOutputTokens is then not used for grouping calls. */
+  outputTokensPerArticle?: number;
   /** Pause between calls (rate limit), ms. */
   delayMs: number;
   /** Optional second pass over compact story descriptors. Off by default. */
@@ -45,7 +48,7 @@ export interface Group { id: string; articleIds: string[]; items: FeedItem[]; gr
 export interface BatchRecord {
   index: number; article_ids: string[]; est_tokens: number;
   est_output_reserve: number; checkpoint_level: 0 | 1 | 2; checkpoint_story_ids: string[];
-  status: 'ok' | 'rejected' | 'unavailable' | 'skipped' | 'unresolved';
+  status: 'ok' | 'rejected' | 'unavailable' | 'skipped' | 'unresolved'; failure?: OutputFailureKind;
   input?: unknown; assignment_output?: unknown; usage?: Record<string, unknown>; diagnostics?: LlmDiagnostics; error?: string;
 }
 export interface GroupingResult {
@@ -59,6 +62,7 @@ export function validateGroupingConfig(input:Partial<GroupingConfig>):GroupingCo
   const cfg={...DEFAULT_GROUPING,...input};
   for(const key of ['batchTokens','leadChars','maxCalls','maxOutputTokens'] as const)
     if(!Number.isSafeInteger(cfg[key])||cfg[key]<=0)throw new Error('Invalid grouping config: '+key);
+  if(cfg.outputTokensPerArticle!==undefined&&(!Number.isSafeInteger(cfg.outputTokensPerArticle)||cfg.outputTokensPerArticle<160||cfg.outputTokensPerArticle>Math.floor(Number.MAX_SAFE_INTEGER/1000)))throw new Error('Invalid grouping config: outputTokensPerArticle');
   if(cfg.maxOutputTokens<160)throw new Error('Invalid grouping config: maxOutputTokens must be >=160');
   if(cfg.maxArticlesPerBatch!==undefined&&(!Number.isSafeInteger(cfg.maxArticlesPerBatch)||cfg.maxArticlesPerBatch<=0))throw new Error('Invalid grouping config: maxArticlesPerBatch');
   if(!Number.isFinite(cfg.checkpointShare)||cfg.checkpointShare<=0||cfg.checkpointShare>=1)throw new Error('Invalid grouping config: checkpointShare');
@@ -143,7 +147,22 @@ export function compactCheckpoint(stories: StoryState[], soft: number, hard: num
   return { stories: short, level: 2, fits: size(short) <= hard };
 }
 
+/** Output ceiling for one grouping call: per-article budget times NEW articles sent, else the fixed ceiling. */
+export const groupingOutputCeiling = (cfg: Pick<GroupingConfig,'outputTokensPerArticle'|'maxOutputTokens'>, newArticles: number) => cfg.outputTokensPerArticle ? cfg.outputTokensPerArticle * newArticles : cfg.maxOutputTokens;
 const FATAL = /HTTP (429|503|403)/;
+export type OutputFailureKind = 'content_filter' | 'truncated' | 'empty' | 'invalid';
+/** Classify a per-batch model output failure; undefined means transport or unknown (stops the run). */
+function outputFailureKind(e: unknown): OutputFailureKind | undefined {
+  const msg = (e as Error)?.message ?? '';
+  const fr = (e as LlmOutputError)?.diagnostics?.finish_reason;
+  const nfr = (e as LlmOutputError)?.diagnostics?.native_finish_reason;
+  if (fr === 'content_filter' || nfr === 'content_filter') return 'content_filter';
+  if (/^Truncated /.test(msg) || fr === 'length') return 'truncated';
+  if (/^Empty /.test(msg)) return 'empty';
+  if (/Invalid grouping|^Invalid JSON /.test(msg) || e instanceof SyntaxError) return 'invalid';
+  return undefined;
+}
+const isBatchOutputFailure = (e: unknown) => outputFailureKind(e) !== undefined;
 const sleepDefault = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 export async function groupArticles(items: FeedItem[], llm: LlmClient | undefined, cfgIn: Partial<GroupingConfig> = {}, sleep: (ms: number) => Promise<void> = sleepDefault): Promise<GroupingResult> {
@@ -166,7 +185,8 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     const one = [queue[0]];
     const fixed = (ids:string[]) => estTokens(GROUPING_INSTRUCTIONS) + estTokens(JSON.stringify(groupingSchema(stories.map(s => s.id), ids)));
     const payloadFor = (ids:string[], checkpoint:CkStory[]) => ({checkpoint:{stories:checkpoint},new_articles:ids.map(row)});
-    const reserve = (ids:string[]) => Math.max(cfg.maxOutputTokens, OUT_BASE + OUT_PER_ARTICLE*ids.length);
+    const outputCeiling = (ids:string[]) => groupingOutputCeiling(cfg, ids.length);
+    const reserve = (ids:string[]) => Math.max(outputCeiling(ids), OUT_BASE + OUT_PER_ARTICLE*ids.length);
     const hard = cfg.batchTokens - fixed(one) - reserve(one) - estTokens(JSON.stringify(payloadFor(one, [])));
     const ck = compactCheckpoint(stories, Math.min(softCk,hard), hard);
     const totalFor = (ids:string[]) => fixed(ids) + estTokens(JSON.stringify(payloadFor(ids,ck.stories))) + reserve(ids);
@@ -174,7 +194,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     if(ck.fits) {
       while(queue.length && take.length < (cfg.maxArticlesPerBatch ?? Infinity)) {
         const candidate=[...take,queue[0]];
-        if(totalFor(candidate)>cfg.batchTokens || OUT_BASE+OUT_PER_ARTICLE*candidate.length>cfg.maxOutputTokens/2)break;
+        if(totalFor(candidate)>cfg.batchTokens || (!cfg.outputTokensPerArticle && OUT_BASE+OUT_PER_ARTICLE*candidate.length>cfg.maxOutputTokens/2))break;
         take.push(queue.shift()!);
       }
     }
@@ -191,7 +211,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     rec.input = input;
     calls++;
     try {
-      const { json, usage, diagnostics } = await llm!.generateJson({ label: 'Grouping', system: GROUPING_INSTRUCTIONS, input, schema: groupingSchema(ck.stories.map(s => s.id), take), temperature: 0, maxOutputTokens: cfg.maxOutputTokens });
+      const { json, usage, diagnostics } = await llm!.generateJson({ label: 'Grouping', system: GROUPING_INSTRUCTIONS, input, schema: groupingSchema(ck.stories.map(s => s.id), take), temperature: 0, maxOutputTokens: outputCeiling(take) });
       rec.usage = usage; rec.diagnostics = diagnostics;
       // Preserve bounded routing IDs only, never arbitrary generated prose, for contract diagnostics.
       const rawRows = (json as {assignments?:unknown})?.assignments;
@@ -212,8 +232,11 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
     } catch (e) {
       if (e instanceof LlmOutputError) { rec.diagnostics = e.diagnostics; rec.usage = e.diagnostics?.usage; }
       const msg = (e as Error).message.slice(0, 250); rec.error = msg;
-      if (FATAL.test(msg) || !/Invalid grouping/.test(msg) && !/Empty Grouping/.test(msg) && !(e instanceof SyntaxError)) { rec.status = 'unavailable'; stopped = true; }
-      else rec.status = 'rejected';
+      // Only provider/transport trouble stops the run. A bad answer for one batch (invalid, empty,
+      // content-filtered, truncated) fails that batch closed and later batches still run. Nothing is
+      // retried or rerouted here, so filtered content is never resent.
+      if (FATAL.test(msg) || !isBatchOutputFailure(e)) { rec.status = 'unavailable'; stopped = true; }
+      else { rec.status = 'rejected'; rec.failure = outputFailureKind(e); }
       markUnvalidated(take); take.forEach(singleton); // fail closed: nothing merged, nothing claimed as validated
     }
     if (queue.length && cfg.delayMs && !stopped) await sleep(cfg.delayMs);
