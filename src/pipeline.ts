@@ -104,7 +104,7 @@ async function main() {
   const provider=createLlmClient(process.env);
   const callAudit:unknown[]=[];
   // Persist before/after every attempted call, including failed validation and cancellation.
-  const llm=provider?auditedClient(provider,join(reviewDir,'calls.jsonl'),callAudit):undefined;
+  const llm=provider?auditedClient(provider,join(reviewDir,'calls.json'),callAudit):undefined;
   // Model-led grouping is an independent opt-in; summaries are separately enabled.
   // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
   let grouping:GroupingResult|undefined;

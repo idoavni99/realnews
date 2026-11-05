@@ -42,7 +42,8 @@ export function validateSynthesis(value: unknown, items: FeedItem[]): StorySynth
         row.article_ids.some(id => !Number.isInteger(id) || !items[id] || (side && groupOf(items[id].side) !== side))) {
         throw new Error('Invalid synthesis citation');
       }
-      const evidence=row.article_ids.map(id => items[id].title+' '+(items[id].fulltext||items[id].summary)).join(' ');
+      const modelEvidence=synthesisInput(items);
+      const evidence=row.article_ids.map(id => modelEvidence[id].title+' '+modelEvidence[id].evidence).join(' ');
       const supportedNumbers=numberClaims(evidence);
       for(const n of numberClaims(row.text)) {
         if(!supportedNumbers.has(n)) throw new Error('Unsupported number in synthesis');
