@@ -69,6 +69,7 @@ jobs:
             .review/evidence.json
             .review/calls.jsonl
             .review/grouping.json
+            .review/articles.json
           retention-days: 1
       - name: Publication quality gate
         if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)

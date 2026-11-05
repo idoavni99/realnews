@@ -20,6 +20,7 @@ import { clusterItems, type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
 import { createLlmClient } from './llm.ts';
 import { auditedClient } from './call-audit.ts';
+import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
 import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import { verifyCandidates } from './verification.ts';
 import { createHash } from 'node:crypto';
@@ -98,6 +99,8 @@ async function main() {
   )].sort();
   const stories: Story[] = [];
   const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
+  const registry=articleRegistry(items);
+  writeFileSync(join(reviewDir,'articles.json'),JSON.stringify(Object.fromEntries(registry)),{mode:0o600});
   const provider=createLlmClient(process.env);
   const callAudit:unknown[]=[];
   // Persist before/after every attempted call, including failed validation and cancellation.
@@ -110,7 +113,7 @@ async function main() {
     grouping=await groupArticles(items,llm!,groupingConfig);
     // Private completed grouping checkpoint, never an approval to publish.
     writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify(grouping));
-    rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:g.items,unvalidated:g.grouping==='unvalidated'}));
+    rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:resolveArticles(g.articleIds,registry),unvalidated:g.grouping==='unvalidated'}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
   const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published));
@@ -161,7 +164,7 @@ async function main() {
       coverage_weighted: weightedCoverage(counts), // weighted shares, not article counts
       total: c.items.length,
       articles: c.items.map((i) => ({
-        source: i.sourceName, side: i.side, title: i.title, url: i.url,
+        article_id:articleId(i.url),source: i.sourceName, side: i.side, title: i.title, url: i.url,
         extraction: i.extraction ?? 'lead_only', summary: i.summary.slice(0, 300),
       })),
     });

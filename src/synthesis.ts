@@ -1,3 +1,4 @@
+import {articleId} from './article-registry.ts';
 import { groupOf } from './config.ts';
 import type { FeedItem } from './rss.ts';
 import { asClient, type LlmClient } from './llm.ts';
@@ -9,9 +10,10 @@ export interface StorySynthesis {
 
 /** Models see only public news text, never keys or account information. */
 export function synthesisInput(items: FeedItem[]) {
-  return items.map((a, i) => ({ id: i, source: a.sourceName, side: groupOf(a.side) ?? a.side,
+  return items.map((a, i) => ({ id: i, article_id:articleId(a.url),source: a.sourceName, side: groupOf(a.side) ?? a.side,
     title: a.title, published: a.published,
     evidence: (a.fulltext || a.summary).slice(0, 4000),
+    available_chars:(a.fulltext||a.summary).length,evidence_truncated:(a.fulltext||a.summary).length>4000,
     access: a.extraction || 'lead_only' }));
 }
 

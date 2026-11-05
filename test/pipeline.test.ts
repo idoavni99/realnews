@@ -236,7 +236,7 @@ test('center_left/center_right are valid owner labels and group by raw label', (
   assert.equal(groupOf('unknown'), null);
 });
 test('synthesis attribution accepts center_left articles under the left group only', () => {
-  const mk = (side: string, t: string) => ({ source: 's', sourceName: 's', side, title: t, url: 'u', summary: t, published: '' }) as any;
+  const mk = (side: string, t: string) => ({ source: 's', sourceName: 's', side, title: t, url: 'https://test.example/'+encodeURIComponent(t), summary: t, published: '' }) as any;
   const items = [mk('left', 'א'), mk('center_left', 'ב'), mk('right', 'ג')];
   const ok = { sides: { left: { summary: [{ text: 'ב', article_ids: [0, 1] }] }, center: { summary: [] }, right: { summary: [] } } };
   assert.doesNotThrow(() => validateSynthesis(ok, items));

@@ -31,7 +31,7 @@ export function extractArticlePage(page: string, title: string): { text: string;
   body = decodeEntities(body).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const tokens = normTokens(body.slice(0, 1500));
   const overlap = [...normTokens(title)].filter(t => tokens.has(t)).length;
-  if (body.length >= 400 && overlap >= 2) return { text: body.slice(0, 4000), status: 'full' };
+  if (body.length >= 400 && overlap >= 2) return { text: body, status: 'full' };
   if (body.length >= 200 && overlap >= 1) return { text: body.slice(0, 1500), status: 'partial' };
   return { text: '', status: 'lead_only' };
 }

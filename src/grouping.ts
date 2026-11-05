@@ -80,13 +80,8 @@ function updateDescriptor(story:StoryState,it:FeedItem) {
 /** Rough character-based estimate for Hebrew/mixed text. A HEURISTIC with no guarantee: the provider's real tokenizer may count more. Keep batchTokens well under the real model limit. */
 export const estTokens = (s: string): number => Math.ceil(s.length / 2);
 
-export function canonicalUrl(raw: string): string {
-  const u = new URL(raw); u.hash = '';
-  for (const k of [...u.searchParams.keys()]) if (k.startsWith('utm_') || ['fbclid', 'gclid'].includes(k)) u.searchParams.delete(k);
-  return u.href;
-}
-/** Stable across runs and batches: same article URL, same id. */
-export const articleId = (url: string): string => 'a_' + createHash('sha256').update(canonicalUrl(url)).digest('hex').slice(0, 12);
+export {canonicalUrl,articleId} from './article-registry.ts';
+import {articleId,articleRegistry,resolveArticles} from './article-registry.ts';
 
 export const GROUPING_INSTRUCTIONS = `You group Hebrew and English news articles by EVENT. Two articles belong together only if they report the same specific event: same people or bodies, same place, same time and the same incident or decision. Same topic, same politician or similar wording is not enough. Different incidents, places or numbers are different stories even when the wording is alike. If unsure, keep articles separate.
 Input has "checkpoint" (existing stories: id, first title, brief, count, publication range, latest member title/source/time) and "new_articles" (id, source, title, lead, published, evidence_access). Publication time is not necessarily event time; null means unknown. Distinguish later coverage of one event from a separate incident. Checkpoint titles and leads may be truncated. Assign EVERY new article exactly once: using target: an existing checkpoint story id, or a new:N token from the schema (articles sharing a new:N token form one new story). Return exactly article_id and target on each assignment row. Use only ids that appear in the input. Do not output text about the news.
@@ -154,8 +149,7 @@ const sleepDefault = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 export async function groupArticles(items: FeedItem[], llm: LlmClient | undefined, cfgIn: Partial<GroupingConfig> = {}, sleep: (ms: number) => Promise<void> = sleepDefault): Promise<GroupingResult> {
   const cfg = validateGroupingConfig(cfgIn);
   // Dedup by canonical URL, keep all originals addressable by stable id.
-  const byId = new Map<string, FeedItem>();
-  for (const it of items) { const id = articleId(it.url); if (!byId.has(id)) byId.set(id, it); }
+  const byId = articleRegistry(items);
   const queue = sourceRoundRobin([...byId.values()]).map(it => articleId(it.url));
   const stories: StoryState[] = [];
   let nextStory = 1; let calls = 0; let stopped = !llm;
@@ -250,7 +244,7 @@ export async function groupArticles(items: FeedItem[], llm: LlmClient | undefine
 
   const groups: Group[] = stories.map(s => {
     const members = [...s.members].sort((a, b) => Date.parse(byId.get(a)!.published) - Date.parse(byId.get(b)!.published) || (a < b ? -1 : 1));
-    return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: members.map(m => byId.get(m)!), grouping: members.some(m => unvalidated.has(m)) ? 'unvalidated' : 'schema_assigned' } as Group;
+    return { id: 'e_' + createHash('sha256').update(members[0]).digest('hex').slice(0, 10), articleIds: members, items: resolveArticles(members,byId), grouping: members.some(m => unvalidated.has(m)) ? 'unvalidated' : 'schema_assigned' } as Group;
   });
   const complete = unvalidated.size === 0 && (!cfg.reconcile || stories.length <= 1 || reconcile?.status === 'ok');
   return { groups, batches, calls, reconcile, complete, unvalidated_articles: unvalidated.size };
