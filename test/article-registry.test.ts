@@ -18,7 +18,7 @@ test('grouping only sees short lead; resolved summary has stable ID and bounded 
  const result=await groupArticles([item],{async generateJson(req){input=req.input;return {json:{assignments:[{article_id:articleId(item.url),target:'new:1'}]}};}},{batchTokens:10000});
  assert.ok(input.new_articles[0].lead.length<=280);assert.ok(!JSON.stringify(input).includes(item.fulltext));
  assert.equal(result.groups[0].items[0].fulltext,item.fulltext);
- const synthesis=synthesisInput(result.groups[0].items)[0];assert.equal(synthesis.article_id,articleId(item.url));assert.equal(synthesis.id,0);assert.equal(synthesis.evidence.length,4000);
+ const synthesis=synthesisInput(result.groups[0].items)[0];assert.equal('article_id' in synthesis,false);assert.equal(synthesis.id,0);assert.equal(synthesis.evidence.length,4000);
 });
 test('retains complete available articleBody above4000 privately, not just its model-input prefix',()=>{
  const body=item.title+' '+item.fulltext;

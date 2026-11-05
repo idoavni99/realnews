@@ -130,7 +130,7 @@ async function main() {
   for (const c of clusters) {
     let synthesis:StorySynthesis|undefined;
     let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v8-route-bound:'+ (process.env.OPENROUTER_MODEL||'openrouter/auto') + ':'+JSON.stringify(synthesisInput(c.items))).digest('hex');
+    const fingerprint=createHash('sha256').update('v9-side-prose-membership:'+ (process.env.OPENROUTER_MODEL||'openrouter/auto') + ':'+JSON.stringify(synthesisInput(c.items))).digest('hex');
     const heldBack=!!(c as {unvalidated?:boolean}).unvalidated; // not grouped by a validated model answer: no generated summary
     if(heldBack) synthesis_status='grouping_unvalidated';
     if(!heldBack && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && process.env.REALNEWS_SYNTHESIS_CACHE_REUSE==='true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }

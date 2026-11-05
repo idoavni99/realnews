@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "source_run": "https://github.com/idoavni99/realnews/actions/runs/42006582088",
+  "story_id": "e_537aef8dc9",
+  "articles": [
+    {
+      "source": "globes",
+      "sourceName": "Globes",
+      "side": "center",
+      "title": "בחצי מיליארד שקל: בזק בדרך להקמת חוות שרתים בפתח תקווה",
+      "url": "https://www.globes.co.il/news/article.aspx?did=1001562175#utm_source=RSS",
+      "summary": "קבוצת בזק חוברת לאדגר כדי להקים יחד חוות שרתים בפתח תקווה בהספק של לפחות 16 מגה-וואט ובמודל של חלוקת הכנסות שווה • הפרויקט, שמוערך בהשקעה של עד 250 מיליון שקל לכל צד, צפוי להתחיל לפעול ב-2028 ולהניב לבזק הכנסות שנתיות של עשרות מיליוני שקלים • ליאור וידר: \"מהלך נכון ומתבקש שפותח לבזק אפיק הכנסות חדש ללא סיכוני הנדל\"ן\"",
+      "published": "Thu, 05 Nov 2026 09:05:00 GMT",
+      "fulltext": "",
+      "extraction": "lead_only"
+    },
+    {
+      "source": "maariv",
+      "sourceName": "Maariv",
+      "side": "center",
+      "title": "בהשקעה של 450 מיליון שקל: חוות השרתים שתוקם בפתח תקווה",
+      "url": "https://www.maariv.co.il/breaking-news/article-1385208",
+      "summary": "",
+      "published": "Thu, 05 Nov 2026 09:42:13 GMT",
+      "fulltext": "בזק, בזק בינלאומי ואדגר חתמו על מזכר הבנות להקמת חוות שרתים משותפת בפתח תקווה, בהשקעה של כ-450 מיליון שקל. ההשקעה צפויה להתפרס על פני השנים 2027-2028, וההפעלה המסחרית מתוכננת ל-2028. להערכת החברות, עם התקדמות האכלוס צפוי המיזם להניב לקבוצת בזק הכנסות שנתיות של כ-50-80 מיליון שקל ו-EBITDA של כ-25-40 מיליון שקל. החווה תוקם במתקן תת-קרקעי בשטח של כ-14 אלף מ\"ר, עם הספק חשמל התחלתי של 16 מגה-ואט, ותשרת את הביקוש לתשתיות ענן, אחסון ועיבוד נתונים, בין היתר ליישומי בינה מלאכותית. תקופת המיזם נקבעה ל-24 שנים ו-11 חודשים ממועד העמדת המבנה, עם אפשרות להארכה.",
+      "extraction": "full"
+    }
+  ],
+  "cases": [
+    {
+      "id": "positive",
+      "model_prose": {
+        "sides": {
+          "left": "",
+          "center": "בזק, בזק בינלאומי ואדגר חתמו על מזכר הבנות להקמת חוות שרתים משותפת בפתח תקווה. לפי מעריב, ההשקעה היא כ-450 מיליון שקל וההפעלה המסחרית מתוכננת ל-2028. לפי גלובס, ההשקעה מוערכת בעד 250 מיליון שקל לכל צד. לפי מעריב, ההספק ההתחלתי הוא 16 מגה-ואט ותקופת המיזם היא 24 שנים ו-11 חודשים, עם אפשרות להארכה.",
+          "right": ""
+        }
+      },
+      "expected_supported": true,
+      "expected_reason": "Preserves MOU status, outlet attribution, place, dates, quantities and extension option.",
+      "mutation": "none"
+    },
+    {
+      "id": "wrong_place",
+      "model_prose": {
+        "sides": {
+          "left": "",
+          "center": "בזק, בזק בינלאומי ואדגר חתמו על מזכר הבנות להקמת חוות שרתים משותפת בחיפה. לפי מעריב, ההשקעה היא כ-450 מיליון שקל וההפעלה המסחרית מתוכננת ל-2028. לפי גלובס, ההשקעה מוערכת בעד 250 מיליון שקל לכל צד. לפי מעריב, ההספק ההתחלתי הוא 16 מגה-ואט ותקופת המיזם היא 24 שנים ו-11 חודשים, עם אפשרות להארכה.",
+          "right": ""
+        }
+      },
+      "expected_supported": false,
+      "expected_reason": "Both captured sources identify Petah Tikva. Haifa is unsupported.",
+      "mutation": "wrong_place"
+    },
+    {
+      "id": "lost_mou_uncertainty",
+      "model_prose": {
+        "sides": {
+          "left": "",
+          "center": "בזק, בזק בינלאומי ואדגר השלימו את הקמת חוות שרתים משותפת בפתח תקווה. לפי מעריב, ההשקעה היא כ-450 מיליון שקל וההפעלה המסחרית מתוכננת ל-2028. לפי גלובס, ההשקעה מוערכת בעד 250 מיליון שקל לכל צד. לפי מעריב, ההספק ההתחלתי הוא 16 מגה-ואט ותקופת המיזם היא 24 שנים ו-11 חודשים, עם אפשרות להארכה.",
+          "right": ""
+        }
+      },
+      "expected_supported": false,
+      "expected_reason": "The sources report a memorandum and a future2028 start, not a completed facility.",
+      "mutation": "lost_mou_uncertainty"
+    },
+    {
+      "id": "source_swap",
+      "model_prose": {
+        "sides": {
+          "left": "",
+          "center": "בזק, בזק בינלאומי ואדגר חתמו על מזכר הבנות להקמת חוות שרתים משותפת בפתח תקווה. לפי מעריב, ההשקעה היא כ-450 מיליון שקל וההפעלה המסחרית מתוכננת ל-2028. לפי מעריב, ההשקעה מוערכת בעד 250 מיליון שקל לכל צד. לפי מעריב, ההספק ההתחלתי הוא 16 מגה-ואט ותקופת המיזם היא 24 שנים ו-11 חודשים, עם אפשרות להארכה.",
+          "right": ""
+        }
+      },
+      "expected_supported": false,
+      "expected_reason": "250million perparty appears in Globes;Maariv reports450million total. Wrong attribution even though quantities exist across sources.",
+      "mutation": "source_swap"
+    },
+    {
+      "id": "negated_extension",
+      "model_prose": {
+        "sides": {
+          "left": "",
+          "center": "בזק, בזק בינלאומי ואדגר חתמו על מזכר הבנות להקמת חוות שרתים משותפת בפתח תקווה. לפי מעריב, ההשקעה היא כ-450 מיליון שקל וההפעלה המסחרית מתוכננת ל-2028. לפי גלובס, ההשקעה מוערכת בעד 250 מיליון שקל לכל צד. לפי מעריב, ההספק ההתחלתי הוא 16 מגה-ואט ותקופת המיזם היא 24 שנים ו-11 חודשים, ללא אפשרות להארכה.",
+          "right": ""
+        }
+      },
+      "expected_supported": false,
+      "expected_reason": "Maariv explicitly says an extension option exists;negation reverses it.",
+      "mutation": "negated_extension"
+    },
+    {
+      "id": "wrong_existing_number",
+      "model_prose": {
+        "sides": {
+          "left": "",
+          "center": "בזק, בזק בינלאומי ואדגר חתמו על מזכר הבנות להקמת חוות שרתים משותפת בפתח תקווה. לפי מעריב, ההשקעה היא כ-450 מיליון שקל וההפעלה המסחרית מתוכננת ל-2028. לפי גלובס, ההשקעה מוערכת בעד 250 מיליון שקל לכל צד. לפי מעריב, ההספק ההתחלתי הוא 16 מגה-ואט ותקופת המיזם היא 11 שנים ו-24 חודשים, עם אפשרות להארכה.",
+          "right": ""
+        }
+      },
+      "expected_supported": false,
+      "expected_reason": "Both numbers occur in evidence, but the duration components are reversed. A token-presence number guard cannot catch this.",
+      "mutation": "wrong_existing_number"
+    }
+  ],
+  "notes": [
+    "All sources owner-labeled center;noleft/right quality claim.",
+    "Each negative changes one claim from positive;all use valid prose shape.",
+    "Run local guard separately;do not count local rejection as model detection.",
+    "Batch all6candidates into ONEverifier call is proposed,not yet approved."
+  ]
+}
