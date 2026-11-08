@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, CONFIRMED_SIDES, weightedCoverage } from './config.ts';
 import { httpGet, sleep } from './http.ts';
-import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
+import { parseFeed, parseI24News, withinArticleWindow, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
 import { clusterItems, type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
@@ -65,6 +65,7 @@ async function main() {
     reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
   });
   const cfg = loadConfig(ROOT);
+  const windowAsOf=Date.now();
   const only = process.env.REALNEWS_SOURCES?.split(',').map(s => s.trim()).filter(Boolean);
   const sources = only?.length ? cfg.sources.filter(s => only.includes(s.id)) : cfg.sources;
   const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
@@ -73,7 +74,7 @@ async function main() {
     try {
       const payload = await httpGet(s.rss);
       const got = (s.format === 'i24_json' ? parseI24News(payload, s) : parseFeed(payload, s))
-        .filter(i => { const age = Date.now() - Date.parse(i.published); return Number.isFinite(age) && age >= -300000 && age <= cfg.windowHours * 3600000; })
+        .filter(i => withinArticleWindow(i,windowAsOf,cfg.windowHours))
         .slice(0, cfg.maxArticlesPerSource);
       sourceHealth[s.id] = { ok: got.length > 0, items: got.length, side: s.side, name: s.name, status: got.length ? 'ok' : 'no_recent_items' };
       console.error(`${s.id}: ${got.length} items`);
@@ -149,6 +150,7 @@ async function main() {
   const out = {
     generated_at: new Date().toISOString(),
     window_hours: cfg.windowHours,
+    window_as_of: new Date(windowAsOf).toISOString(),
     monitored_sides: monitoredSides,
     source_health: sourceHealth,
     ...(grouping?{grouping:{mode:'model',complete:grouping.complete,unvalidated_articles:grouping.unvalidated_articles}}:{}),

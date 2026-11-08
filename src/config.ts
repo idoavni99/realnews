@@ -70,7 +70,7 @@ export function loadConfig(root: string): Config {
   for (const src of sources) src.side = normalizeSide(src.side as string);
   return {
     sources,
-    windowHours: parseInt(opts['window_hours'] ?? '24', 10),
+    windowHours: parseInt(opts['window_hours'] ?? '12', 10),
     maxArticlesPerSource: parseInt(opts['max_articles_per_source'] ?? '8', 10),
   };
 }

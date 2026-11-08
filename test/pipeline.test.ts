@@ -254,3 +254,15 @@ test('owner sources.yaml hyphen tags load as supported categories', () => {
 test('owner per-source ingestion cap is eight',()=>{
  assert.equal(loadConfig(new URL('..',import.meta.url).pathname).maxArticlesPerSource,8);
 });
+
+import {withinArticleWindow} from '../src/rss.ts';
+test('owner twelve-hour window uses publication time before grouping and skips unknown timestamps',()=>{
+ const now=Date.parse('2026-11-08T19:00:00+02:00');
+ const a=parseFeed(FEED,SRC)[0];
+ assert.equal(loadConfig(new URL('..',import.meta.url).pathname).windowHours,12);
+ for(const [published,expected] of [
+  ['2026-11-08T07:00:00+02:00',true],['2026-11-08T06:59:59+02:00',false],
+  ['2026-11-08T19:05:00+02:00',true],['2026-11-08T19:05:01+02:00',false],
+  ['',false],['unknown',false],
+ ] as const) assert.equal(withinArticleWindow({...a,published},now,12),expected);
+});
