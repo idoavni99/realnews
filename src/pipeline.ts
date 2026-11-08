@@ -23,6 +23,7 @@ import { auditedClient } from './call-audit.ts';
 import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
 import {createArticleSnapshot} from './article-snapshot.ts';
 import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
+import {publishableGroups} from './grouping-publication.ts';
 import { accessCaveats, synthesisInput, type StorySynthesis } from './synthesis.ts';
 import {orderedEvidence, summarizeStories, summaryCache} from './summary-runner.ts';
 
@@ -110,12 +111,15 @@ async function main() {
   // Model-led grouping is an independent opt-in; summaries are separately enabled.
   // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
   let grouping:GroupingResult|undefined;
+  let groupingPublication:ReturnType<typeof publishableGroups>['manifest']|undefined;
   let rawClusters:(Cluster&{unvalidated?:boolean})[];
   if(policy.grouping) {
     grouping=await groupArticles(items,llm!,groupingConfig);
     // Private completed grouping checkpoint, never an approval to publish.
     writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify({...grouping,snapshot_run_id:articleSnapshot.run_id,snapshot_sha256:articleSnapshot.content_sha256}));
-    rawClusters=grouping.groups.map(g=>({tokens:new Set<string>(),items:resolveArticles(g.articleIds,registry),unvalidated:g.grouping==='unvalidated'}));
+    const selected=publishableGroups(grouping,items);
+    groupingPublication=selected.manifest;
+    rawClusters=selected.groups.map(g=>({tokens:new Set<string>(),items:resolveArticles(g.articleIds,registry),unvalidated:false}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
   const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published));
@@ -153,7 +157,7 @@ async function main() {
     window_as_of: new Date(windowAsOf).toISOString(),
     monitored_sides: monitoredSides,
     source_health: sourceHealth,
-    ...(grouping?{grouping:{mode:'model',complete:grouping.complete,unvalidated_articles:grouping.unvalidated_articles}}:{}),
+    ...(groupingPublication?{grouping:groupingPublication}:{}),
     stories,
   };
   const reportedCost=callAudit.reduce((sum:number,a:any)=>sum+(typeof a.usage?.cost==='number'?a.usage.cost:0),0);
@@ -161,7 +165,6 @@ async function main() {
   console.error(`model accounting: attempts=${callAudit.length}, reported cost USD=${reportedCost.toFixed(8)}, missing cost records=${missingCost}; missing records are NOT zero cost`);
   writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,calls:callAudit,accounting:{attempts:callAudit.length,reported_cost_usd:reportedCost,cost_records_missing:missingCost,usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'},stories:review},null,2));
   writeFileSync(join(reviewDir,'staged-data.json'),JSON.stringify(out,null,2));
-  if(grouping&&!grouping.complete)throw new Error('Incomplete grouping: staged data/evidence preserved; primary output unchanged');
   const dest = join(ROOT, process.env.REALNEWS_OUT ?? 'site/data.json');
   writeFileSync(dest, JSON.stringify(out, null, 1));
   const nFull = items.filter((i) => i.extraction === 'full').length;

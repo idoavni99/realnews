@@ -28,7 +28,17 @@ export function publicationGate(data: any, allowModelGrouping=false) {
   if (!data || typeof data!=='object' || !Array.isArray(data.stories) ||
     data.stories.some((s: any)=>!s || typeof s!=='object' || Array.isArray(s)))
     throw new Error('Publication blocked: malformed digest');
-  if (data.grouping && data.grouping.complete!==true) throw new Error('Publication blocked: incomplete grouping');
+  if (data.grouping && data.grouping.complete!==true) {
+    const g=data.grouping;
+    const counts=[g.input_articles,g.published_articles,g.omitted_articles,g.omitted_groups];
+    const articles=data.stories.flatMap((s: any)=>Array.isArray(s.articles)?s.articles:[]);
+    const ids=articles.map((a: any)=>a.article_id);
+    if (g.complete!==false || g.partial!==true || counts.some(n=>!Number.isSafeInteger(n)||n<0) ||
+      g.input_articles!==g.published_articles+g.omitted_articles || articles.length!==g.published_articles ||
+      ids.some((id: any)=>typeof id!=='string'||!id) || new Set(ids).size!==ids.length ||
+      data.stories.some((s: any)=>s.grouping_status!=='schema_assigned'))
+      throw new Error('Publication blocked: incomplete grouping without valid partial manifest');
+  }
   if (data.stories.some((s: any)=>s.grouping_status==='unvalidated' || s.synthesis_status==='grouping_unvalidated'))
     throw new Error('Publication blocked: unvalidated membership');
   if (data.grouping && !allowModelGrouping) throw new Error('Publication blocked: model grouping not enabled for publication');
