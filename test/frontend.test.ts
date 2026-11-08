@@ -30,3 +30,10 @@ test('published full-feed data has every completed group and no article duplicat
  const urls=data.stories.flatMap(s=>s.articles.map(a=>a.url));assert.equal(new Set(urls).size,urls.length);
  const pipeline=readFileSync(new URL('../src/pipeline.ts',import.meta.url),'utf8');assert.ok(!/slice\(0,\s*30\)/.test(pipeline));
 });
+
+test('partial digest warns with omitted count, hides bars and avoids absence claims',()=>{
+ const c=context();c.run(`DATA={generated_at:new Date().toISOString(),window_hours:12,grouping:{partial:true,omitted_articles:14},monitored_sides:['left','right'],source_health:{},stories:[{headline:'Valid',summary:'source',total:1,counts:{left:1},articles:[{side:'left',title:'left'}]}]};renderFeed();`);
+ assert.ok(c.node('feed').innerHTML.includes('14 כתבות הושמטו'));
+ assert.ok(!c.node('feed').innerHTML.includes('seg-left'));
+ assert.ok(c.run('sideSummariesHtml(DATA.stories[0])').includes('אין להסיק שלא דווח'));
+});

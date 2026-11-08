@@ -122,6 +122,7 @@ function weighted(story) {
 function storyGroups(story) { return SIDE_ORDER.filter(g => groupCount(story, g) > 0); }
 
 function coverageHtml(story) {
+  if(DATA.grouping?.partial)return '<p class="note">הסיקור חלקי. חלוקת הכיסוי והיעדר דיווח אינם מוצגים משום שחלק מהכתבות הושמטו.</p>';
   if(story.grouping_status==='unvalidated')return '<p class="note">נתוני כיסוי לפי אירוע אינם זמינים לקיבוץ שלא אומת.</p>';
   const groups = SIDE_ORDER.filter(groupMonitored);
   const w = weighted(story);
@@ -180,7 +181,7 @@ function renderFeed() {
     </a>`;
   const state=readFilters();
   const visible=DATA.stories.map((story,index)=>({story,index})).filter(({story})=>matchesStory(story,state));
-  document.getElementById('feed').innerHTML = `<p class="results" role="status">${visible.length} מתוך ${DATA.stories.length} סיפורים</p>` +
+  document.getElementById('feed').innerHTML = (DATA.grouping?.partial ? `<p class="note" role="status">סיקור חלקי: ${DATA.grouping.omitted_articles} כתבות הושמטו עקב קיבוץ שלא אומת. מוצגים רק הסיפורים שעברו את בדיקות הקיבוץ.</p>` : '') + `<p class="results" role="status">${visible.length} מתוך ${DATA.stories.length} סיפורים</p>` +
     (visible.length?visible.map(({story,index})=>card(story,index)).join(''):'<p class="empty">לא נמצאו סיפורים התואמים לחיפוש ולסינון.</p>') +
     `<footer class="health">מקורות: ${Object.entries(DATA.source_health).map(([id, h]) =>
       `<span class="${h.ok ? 'ok' : 'bad'}">${esc(h.name)}${h.ok ? '' : h.status === 'no_recent_items' ? ' (אין כתבות עדכניות בפיד)' : ' (תקלה)'}</span>`).join(' · ')}
@@ -195,7 +196,7 @@ function sideSummariesHtml(s) {
   return `<h3 class="sec">מה מדווחים לפי צד</h3><p class="note">${intro}</p>` + SIDE_ORDER.map(side => {
     const found=s.articles.some(a=>GROUP_SIDES[side].includes(a.side));
     const rows=ready ? s.synthesis.sides[side]?.summary || [] : [];
-    const absent=groupMonitored(side) ? 'לא נמצאו כתבות בנושא במקורות שבמעקב.' : 'הצד הזה אינו במעקב כרגע.';
+    const absent=DATA.grouping?.partial ? 'לא נכללו כאן כתבות מצד זה. הסיקור חלקי ולכן אין להסיק שלא דווח בנושא.' : groupMonitored(side) ? 'לא נמצאו כתבות בנושא במקורות שבמעקב.' : 'הצד הזה אינו במעקב כרגע.';
     return `<section class="side-summary ${side}"><h3>${SIDE_HE[side]}</h3>${rows.length ? rows.map(row=>`<p>${esc(row.text)}<span class="evidence">${row.evidence_kind==='side_membership'?'מקורות בצד זה (לא ציטוט לכל טענה)':'מקורות'}: ${row.article_ids.map(id=>s.articles[id]).filter(Boolean).map(a=>esc(a.source)).join(' · ')}</span></p>`).join('') : `<p>${!found ? absent : 'יש כתבות, אך אין סיכום מאומת זמין.'}</p>`}</section>`;
   }).join('') + (s.caveats||[]).map(c=>`<p class="note">${esc(c)}</p>`).join('');
 }
