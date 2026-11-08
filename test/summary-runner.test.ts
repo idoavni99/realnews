@@ -93,11 +93,35 @@ test('stable source order keeps cache key and citation membership deterministic'
   assert.notEqual(summaryFingerprint(a),summaryFingerprint([{...a[0],summary:'changed'},a[1]]));
 });
 
-test('missing and exhausted summaries do not discard articles or bypass summary review',()=>{
-  publicationGate({stories:[{synthesis_status:'exhausted'},{synthesis_status:'missing_text'},{synthesis_status:'unavailable'}]});
-  const synthesis=attachSummaryMembership(draft,[item('a')]);
-  assert.throws(()=>publicationGate({stories:[{synthesis_status:'ready',synthesis}]}),/human quality approval/);
-  assert.throws(()=>publicationGate({stories:[{synthesis_status:'exhausted',synthesis}]}),/unverified summary/);
+test('failed summary is isolated while verified stories and source articles survive publication',()=>{
+ const synthesis=attachSummaryMembership(draft,[item('a')]);
+ const good={articles:[item('a')],synthesis_status:'ready',synthesis};
+ const failed={articles:[item('b')],synthesis_status:'exhausted',synthesis};
+ const data={stories:[good,failed,{articles:[item('c')],synthesis_status:'missing_text'}]};
+ const out=publicationGate(data);
+ assert.deepEqual(out.stories[0],good);
+ assert.equal(out.stories[1].synthesis,undefined);
+ assert.deepEqual(out.stories[1].articles,failed.articles);
+ assert.equal(out.stories.length,3);
+ assert.equal(data.stories[1].synthesis,synthesis);
+});
+
+test('malformed ready prose is omitted locally without manual approval or relaxed citation checks',()=>{
+ const synthesis=attachSummaryMembership(draft,[item('a')]);
+ for(const invalid of [{}, {sides:{}}, {...synthesis,headline:'invented'},
+  {sides:{...synthesis.sides,center:{summary:[{text:'text',article_ids:[99]}]}}},
+  {sides:{...synthesis.sides,right:synthesis.sides.center}},
+  {sides:{...synthesis.sides,center:{summary:[{text:'text',article_ids:[0,0],evidence_kind:'side_membership'}]}}}]) {
+  const out=publicationGate({grouping:{complete:true},stories:[
+   {articles:[item('a')],synthesis_status:'ready',synthesis:invalid},
+   {articles:[item('b')],synthesis_status:'ready',synthesis},
+  ]},true);
+  assert.equal(out.stories[0].synthesis,undefined);
+  assert.equal(out.stories[0].synthesis_status,'invalid_summary');
+  assert.deepEqual(out.stories[1].synthesis,synthesis);
+ }
+ const absent=publicationGate({stories:[{synthesis_status:'ready'}]});
+ assert.equal(absent.stories[0].synthesis_status,'invalid_summary');
 });
 
 test('unvalidated grouping never calls summary or reuses cached prose',async()=>{
