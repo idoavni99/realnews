@@ -12,7 +12,7 @@ test('grouping and synthesis are independent, missing provider and bad call cap 
 });
 test('publication fails closed on incomplete membership, failed summaries and unapproved experiment',()=>{
  publicationGate({stories:[]});
- for(const data of [{grouping:{complete:false},stories:[]},{stories:[{grouping_status:'unvalidated'}]},{stories:[{synthesis_status:'rejected'}]},{grouping:{complete:true},stories:[]}])assert.throws(()=>publicationGate(data),/Publication blocked/);
+ for(const data of [{grouping:{complete:false},stories:[]},{stories:[{grouping_status:'unvalidated'}]},{stories:[{synthesis_status:'rejected',synthesis:{}}]},{grouping:{complete:true},stories:[]}])assert.throws(()=>publicationGate(data),/Publication blocked/);
  const data={grouping:{complete:true},stories:[]};
  const approval={data_sha256:createHash('sha256').update(JSON.stringify(data)).digest('hex'),grouping_quality_approved:true,summary_quality_approved:true};
  publicationGate(data,approval);

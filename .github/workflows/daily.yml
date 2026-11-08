@@ -23,6 +23,10 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -38,11 +42,11 @@ jobs:
       - name: Tests
         run: npm test
       - name: Restore synthesis cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .cache
-          key: synthesis-v7-${{ github.run_id }}
-          restore-keys: synthesis-v7-
+          key: synthesis-v10-${{ github.run_id }}
+          restore-keys: synthesis-v10-
       - name: Run pipeline
         env:
           REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
@@ -53,6 +57,12 @@ jobs:
           OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || vars.OPENROUTER_MODEL || 'openrouter/auto' }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
+      - name: Save verified synthesis checkpoints
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache
+          key: synthesis-v10-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Preserve staged output
         if: always()
         uses: actions/upload-artifact@v4
