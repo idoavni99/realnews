@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 export function publicationGate(data:any,approval?:any,allowGroupingOnly=false) {
   if(data.grouping&&!data.grouping.complete)throw new Error('Publication blocked: incomplete grouping');
   if(data.stories?.some((s:any)=>s.grouping_status==='unvalidated'))throw new Error('Publication blocked: unvalidated membership');
-  if(data.stories?.some((s:any)=>['rejected','unavailable','grouping_unvalidated'].includes(s.synthesis_status)))throw new Error('Publication blocked: failed summary stage');
+  if(data.stories?.some((s:any)=>s.synthesis && s.synthesis_status!=='ready'))throw new Error('Publication blocked: unverified summary');
   const hasSummaries=data.stories?.some((s:any)=>s.synthesis_status==='ready');
   const experimental=(!!data.grouping&&!allowGroupingOnly)||hasSummaries;
   if(experimental) {

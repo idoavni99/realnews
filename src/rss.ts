@@ -63,3 +63,8 @@ export function parseI24News(json: string, source: Source): FeedItem[] {
   }
   return items;
 }
+
+export function withinArticleWindow(item: FeedItem, now: number, hours: number): boolean {
+  const age=now-Date.parse(item.published);
+  return Number.isFinite(age) && age>=-300000 && age<=hours*3600000;
+}

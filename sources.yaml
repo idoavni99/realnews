@@ -48,5 +48,5 @@ sources:
     name: כיכר השבת
     side: right
     rss: https://a.kikar.co.il/v1/rss/articles/latest/rss2
-window_hours: 24
+window_hours: 12
 max_articles_per_source: 8

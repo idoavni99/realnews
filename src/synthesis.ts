@@ -11,8 +11,8 @@ export interface StorySynthesis {
 export function synthesisInput(items: FeedItem[]) {
   return items.map((a, i) => ({ id: i, source: a.sourceName, side: groupOf(a.side) ?? a.side,
     title: a.title, published: a.published,
-    evidence: (a.fulltext || a.summary).slice(0, 4000),
-    available_chars:(a.fulltext||a.summary).length,evidence_truncated:(a.fulltext||a.summary).length>4000,
+    evidence: (a.fulltext?.trim() || a.summary.trim()).slice(0, 4000),
+    available_chars:(a.fulltext?.trim()||a.summary.trim()).length,evidence_truncated:(a.fulltext?.trim()||a.summary.trim()).length>4000,
     access: a.extraction || 'lead_only' }));
 }
 

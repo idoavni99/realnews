@@ -9,12 +9,12 @@
  * - A side with no healthy sources (or no confirmed label) is NOT part of the
  *   percentage at all - the UI shows it as "not monitored", never as 0%.
  */
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, CONFIRMED_SIDES, weightedCoverage } from './config.ts';
 import { httpGet, sleep } from './http.ts';
-import { parseFeed, parseI24News, type FeedItem } from './rss.ts';
+import { parseFeed, parseI24News, withinArticleWindow, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
 import { clusterItems, type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
@@ -23,9 +23,8 @@ import { auditedClient } from './call-audit.ts';
 import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
 import {createArticleSnapshot} from './article-snapshot.ts';
 import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
-import { verifyCandidates } from './verification.ts';
-import { createHash } from 'node:crypto';
-import { synthesizeStory, accessCaveats, synthesisInput, validateSynthesis, type StorySynthesis } from './synthesis.ts';
+import { accessCaveats, synthesisInput, type StorySynthesis } from './synthesis.ts';
+import {orderedEvidence, summarizeStories, summaryCache} from './summary-runner.ts';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -66,6 +65,7 @@ async function main() {
     reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
   });
   const cfg = loadConfig(ROOT);
+  const windowAsOf=Date.now();
   const only = process.env.REALNEWS_SOURCES?.split(',').map(s => s.trim()).filter(Boolean);
   const sources = only?.length ? cfg.sources.filter(s => only.includes(s.id)) : cfg.sources;
   const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
@@ -74,7 +74,7 @@ async function main() {
     try {
       const payload = await httpGet(s.rss);
       const got = (s.format === 'i24_json' ? parseI24News(payload, s) : parseFeed(payload, s))
-        .filter(i => { const age = Date.now() - Date.parse(i.published); return Number.isFinite(age) && age >= -300000 && age <= cfg.windowHours * 3600000; })
+        .filter(i => withinArticleWindow(i,windowAsOf,cfg.windowHours))
         .slice(0, cfg.maxArticlesPerSource);
       sourceHealth[s.id] = { ok: got.length > 0, items: got.length, side: s.side, name: s.name, status: got.length ? 'ok' : 'no_recent_items' };
       console.error(`${s.id}: ${got.length} items`);
@@ -119,40 +119,15 @@ async function main() {
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else rawClusters=clusterItems(items);
   const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published));
-  const cacheDir=join(ROOT,'.cache'); mkdirSync(cacheDir,{recursive:true});
-  const cachePath=join(cacheDir,'synthesis.json');
-  let cache: Record<string,StorySynthesis>={};
-  try { if(existsSync(cachePath)) cache=JSON.parse(readFileSync(cachePath,'utf8')); } catch { console.error('Ignoring invalid synthesis cache'); }
-  const nextCache:Record<string,StorySynthesis>={};
-  const review:unknown[]=[];
-  let calls=0, unavailable=false;
-  const maxCalls=policy.maxCalls; // Bounded free-only standard API calls. No paid or alternate-provider fallback.
-  for (const c of clusters) {
-    let synthesis:StorySynthesis|undefined;
-    let synthesis_status='not_configured';
-    const fingerprint=createHash('sha256').update('v9-side-prose-membership:'+ (process.env.OPENROUTER_MODEL||'openrouter/auto') + ':'+JSON.stringify(synthesisInput(c.items))).digest('hex');
-    const heldBack=!!(c as {unvalidated?:boolean}).unvalidated; // not grouped by a validated model answer: no generated summary
-    if(heldBack) synthesis_status='grouping_unvalidated';
-    if(!heldBack && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true' && process.env.REALNEWS_SYNTHESIS_CACHE_REUSE==='true' && cache[fingerprint]) { try { synthesis=validateSynthesis(cache[fingerprint],c.items); synthesis_status='ready'; } catch {} }
-    const audit:{story:number;fingerprint:string;evidence:ReturnType<typeof synthesisInput>;draft?:StorySynthesis;verdicts?:unknown;error?:string;status?:string}={story:stories.length,fingerprint,evidence:synthesisInput(c.items)};
-    if(!heldBack && !synthesis && llm && process.env.REALNEWS_SYNTHESIS_ENABLED === 'true') {
-      synthesis_status='unavailable';
-      if(!unavailable && calls+2<=maxCalls) {
-        calls++;
-        try {
-          const draft=await synthesizeStory(c.items,llm); audit.draft=draft;
-          calls++;
-          const verdicts=await verifyCandidates(c.items,[{id:'summary',summary:draft}],llm);
-          audit.verdicts=verdicts;
-          if(!verdicts[0]?.supported) throw new Error('Verification rejected summary');
-          synthesis=draft; synthesis_status='ready';
-        }
-        catch(e) { audit.error=(e as Error).message.slice(0,250); synthesis_status=/Verification rejected|Invalid|Unsupported|Unexpected/.test((e as Error).message)?'rejected':'unavailable'; console.error(`Synthesis rejected/unavailable for story ${stories.length}: ${(e as Error).message.slice(0,180)}`); if(/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true; }
-        await sleep(2000); // Owner-selected per-story pacing; HTTP rate limits still stop further calls.
-      }
-    }
-    audit.status=synthesis_status; review.push(audit);
-    if(synthesis) nextCache[fingerprint]=synthesis;
+  for (const cluster of clusters) cluster.items=orderedEvidence(cluster.items);
+  const summaries=await summarizeStories(clusters.map(c=>({items:c.items,heldBack:c.unvalidated})),{
+    enabled:policy.synthesis,llm,maxCalls:policy.maxCalls,
+    cache:summaryCache(join(ROOT,'.cache','synthesis.json')),
+  });
+  const review=summaries.map((result,i)=>({...result,story:i,evidence:synthesisInput(clusters[i].items)}));
+  for (const [index,c] of clusters.entries()) {
+    const {synthesis,status:synthesis_status}=summaries[index];
+    const heldBack=!!c.unvalidated;
     const counts: Record<string, number> = {};
     for (const i of c.items) {
       if (monitoredSides.includes(i.side)) counts[i.side] = (counts[i.side] ?? 0) + 1;
@@ -175,6 +150,7 @@ async function main() {
   const out = {
     generated_at: new Date().toISOString(),
     window_hours: cfg.windowHours,
+    window_as_of: new Date(windowAsOf).toISOString(),
     monitored_sides: monitoredSides,
     source_health: sourceHealth,
     ...(grouping?{grouping:{mode:'model',complete:grouping.complete,unvalidated_articles:grouping.unvalidated_articles}}:{}),
@@ -186,7 +162,6 @@ async function main() {
   writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,calls:callAudit,accounting:{attempts:callAudit.length,reported_cost_usd:reportedCost,cost_records_missing:missingCost,usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'},stories:review},null,2));
   writeFileSync(join(reviewDir,'staged-data.json'),JSON.stringify(out,null,2));
   if(grouping&&!grouping.complete)throw new Error('Incomplete grouping: staged data/evidence preserved; primary output unchanged');
-  writeFileSync(cachePath,JSON.stringify(nextCache));
   const dest = join(ROOT, process.env.REALNEWS_OUT ?? 'site/data.json');
   writeFileSync(dest, JSON.stringify(out, null, 1));
   const nFull = items.filter((i) => i.extraction === 'full').length;
