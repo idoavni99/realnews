@@ -64,14 +64,14 @@ jobs:
           path: .cache
           key: synthesis-v10-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Preserve staged output
-        if: always()
+        if: always() && github.event.repository.private == true
         uses: actions/upload-artifact@v4
         with:
           name: staged-digest
           path: .review/staged-data.json
           retention-days: 3
       - name: Private review evidence
-        if: always()
+        if: always() && github.event.repository.private == true
         uses: actions/upload-artifact@v4
         with:
           name: private-review-evidence
@@ -94,3 +94,12 @@ jobs:
           git add site/data.json
           git diff --cached --quiet || git commit -m "Daily digest $(date -u +%Y-%m-%d)"
           bash scripts/push-with-retry.sh
+
+  deploy-pages:
+    needs: build
+    if: github.event.repository.visibility == 'public' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

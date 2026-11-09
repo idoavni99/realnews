@@ -1,7 +1,7 @@
 # realnews
 
 Daily Hebrew news digest: the story itself, plus how coverage splits across the
-political map. Private project, zero-billing architecture.
+political map. Static site with a scheduled TypeScript news pipeline.
 
 ## How it works
 
@@ -24,16 +24,36 @@ political map. Private project, zero-billing architecture.
 - **No paywalled content.** Only free public articles are fetched.
 - **Original sources are one tap away** from every story.
 
+## Hosting on GitHub Pages
+
+The Pages workflow publishes only `site/`, not source files, fixtures or review evidence.
+It runs on site changes to `main`, by manual dispatch, and directly after a successful
+publishing digest run. The direct call matters: commits made with `GITHUB_TOKEN`
+do not trigger another push workflow. Each deployment checks out current `main`.
+
+Before the first deployment:
+
+1. Review the repository's history, PR discussions, Actions logs, artifacts and caches
+   for anything that should not become public. Existing artifacts are not made private
+   by their names. Older git author metadata includes the owner's email address.
+2. Make the repository public only after that disclosure review is approved.
+3. In Settings > Pages, select GitHub Actions as the publishing source.
+4. Merge this workflow, then run GitHub Pages manually if the merge occurred while
+   the repository was still private. Use the URL returned by the deployment.
+5. Verify both the feed and story details before retiring the old Vercel hosting.
+
+Workflows skip raw staged/evidence artifact uploads once the repository is public.
+Existing artifacts are unaffected and need a separate pre-publicity decision.
+Public Actions logs still expose run diagnostics and provider-reported costs.
+No workflow deletes or changes the Vercel project.
+
 ## Cost
 
-- GitHub Actions: free for public repos; 2,000 free minutes/month for private
-  repos (a daily run takes a few minutes). Keep the account's Actions budget at
-  $0 so usage can never bill.
-- Hosting: GitHub Pages on the Free plan serves public repos only. For this
-  private repo, hosting needs a free static host that accepts private repos
-  (e.g. Cloudflare Pages) - pending the owner's decision.
-- Summaries: extractive by default (no API). An optional LLM summarizer can be
-  added later behind an explicit owner decision; nothing calls a paid API today.
+GitHub Pages is available for public repositories on GitHub Free. Standard hosted
+Actions runners are free for public repositories, subject to GitHub's limits.
+The model pipeline is separate: enabled grouping/synthesis uses OpenRouter and
+can spend API credits. Changing the static host does not make model calls free.
+This migration does not enable model stages or change their existing budgets.
 
 ## תיוג מקורות (רק הבעלים)
 
