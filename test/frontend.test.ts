@@ -31,9 +31,18 @@ test('published full-feed data has every completed group and no article duplicat
  const pipeline=readFileSync(new URL('../src/pipeline.ts',import.meta.url),'utf8');assert.ok(!/slice\(0,\s*30\)/.test(pipeline));
 });
 
-test('partial digest warns with omitted count, hides bars and avoids absence claims',()=>{
+test('partial digest shows bars from published articles with partial label, warns with omitted count and avoids absence claims',()=>{
  const c=context();c.run(`DATA={generated_at:new Date().toISOString(),window_hours:12,grouping:{partial:true,omitted_articles:14},monitored_sides:['left','right'],source_health:{},stories:[{headline:'Valid',summary:'source',total:1,counts:{left:1},articles:[{side:'left',title:'left'}]}]};renderFeed();`);
- assert.ok(c.node('feed').innerHTML.includes('14 כתבות הושמטו'));
- assert.ok(!c.node('feed').innerHTML.includes('seg-left'));
+ const feed=c.node('feed').innerHTML;
+ assert.ok(feed.includes('14 כתבות הושמטו'));
+ assert.ok(feed.includes('seg-left'));
+ assert.ok(feed.includes('האחוזים משקפים רק את הכתבות שפורסמו'));
  assert.ok(c.run('sideSummariesHtml(DATA.stories[0])').includes('אין להסיק שלא דווח'));
+});
+
+test('complete digest shows bars without the partial label',()=>{
+ const c=context();c.run(`DATA={generated_at:new Date().toISOString(),window_hours:12,grouping:{partial:false,omitted_articles:0},monitored_sides:['left','right'],source_health:{},stories:[{headline:'Valid',summary:'source',total:1,counts:{left:1},articles:[{side:'left',title:'left'}]}]};renderFeed();`);
+ const feed=c.node('feed').innerHTML;
+ assert.ok(feed.includes('seg-left'));
+ assert.ok(!feed.includes('האחוזים משקפים רק את הכתבות שפורסמו'));
 });

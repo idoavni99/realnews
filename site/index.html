@@ -126,13 +126,13 @@ function weighted(story) {
 function storyGroups(story) { return SIDE_ORDER.filter(g => groupCount(story, g) > 0); }
 
 function coverageHtml(story) {
-  if(DATA.grouping?.partial)return '<p class="note">הסיקור חלקי. חלוקת הכיסוי והיעדר דיווח אינם מוצגים משום שחלק מהכתבות הושמטו.</p>';
   if(story.grouping_status==='unvalidated')return '<p class="note">נתוני כיסוי לפי אירוע אינם זמינים לקיבוץ שלא אומת.</p>';
+  const partialNote = DATA.grouping?.partial ? '<p class="note">הסיקור חלקי - האחוזים משקפים רק את הכתבות שפורסמו, לא את כל הכתבות שנאספו.</p>' : '';
   const groups = SIDE_ORDER.filter(groupMonitored);
   const w = weighted(story);
   const counted = groups.reduce((a, g) => a + w[g], 0);
   if (groups.length < 2 || counted === 0) {
-    return `<div class="cov"><div class="nobar">${articlesLabel(story.total)} · תיוג צדדים טרם הושלם</div></div>`;
+    return partialNote + `<div class="cov"><div class="nobar">${articlesLabel(story.total)} · תיוג צדדים טרם הושלם</div></div>`;
   }
   const pct = g => Math.round(w[g] / counted * 100);
   const segs = groups.filter(g => w[g]).map(g =>
@@ -149,7 +149,7 @@ function coverageHtml(story) {
       : `${SIDE_HE[g]} ${pct(g)}%${half.length ? ' משוקלל' : ''} · ${n === 0 ? '0 כתבות' : articlesLabel(n)}${detail}${via}`;
     return `<span class="chip ${off ? 'off' : g}"><i class="seg-${g}"></i>${txt}</span>`;
   }).join('');
-  return `<div class="cov">${half.length ? '<div class="cov-cap">כיסוי משוקלל (מרכז־שמאל ומרכז־ימין = חצי משקל)</div>' : ''}<div class="cov-bar">${segs}</div><div class="cov-legend">${legend}</div></div>`;
+  return partialNote + `<div class="cov">${half.length ? '<div class="cov-cap">כיסוי משוקלל (מרכז־שמאל ומרכז־ימין = חצי משקל)</div>' : ''}<div class="cov-bar">${segs}</div><div class="cov-legend">${legend}</div></div>`;
 }
 
 // Search is over the text actually available in the published digest, not external paywalled text.
