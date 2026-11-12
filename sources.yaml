@@ -19,7 +19,7 @@ sources:
     rss: https://www.mako.co.il/RSS/31750a2610f26110VgnVCM1000005201000aRCRD.xml
   - id: maariv
     name: Maariv
-    side: center
+    side: center-right
     rss: https://www.maariv.co.il/Rss/RssFeedsMivzakiChadashot
   - id: globes
     name: Globes
