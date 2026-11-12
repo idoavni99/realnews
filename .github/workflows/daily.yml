@@ -49,7 +49,7 @@ jobs:
           restore-keys: synthesis-v10-
       - name: Run pipeline
         env:
-          REALNEWS_SYNTHESIS_ENABLED: ${{ inputs.synthesis && 'true' || 'false' }}
+          REALNEWS_SYNTHESIS_ENABLED: ${{ (inputs.synthesis || github.event_name == 'schedule') && 'true' || 'false' }}
           REALNEWS_GROUPING_BATCH_TOKENS: ${{ vars.REALNEWS_GROUPING_BATCH_TOKENS || '24000' }}
           REALNEWS_GROUPING_MAX_ARTICLES: '6'
           REALNEWS_GROUPING_OUTPUT_TOKENS_PER_ARTICLE: '1500'
