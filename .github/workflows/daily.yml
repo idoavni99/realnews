@@ -85,9 +85,7 @@ jobs:
         run: |
           git config user.name "realnews-bot"
           git config user.email "realnews-bot@users.noreply.github.com"
-          git add site/data.json
-          git diff --cached --quiet || git commit -m "Daily digest $(date -u +%Y-%m-%d)"
-          bash scripts/push-with-retry.sh
+          bash scripts/publish-digest.sh
 
   deploy-pages:
     needs: build
