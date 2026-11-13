@@ -90,7 +90,7 @@ export async function summarizeStories(
         accepted=draft;
       } catch(e) {
         attempt.error=(e as Error).message.slice(0,250);
-        if (/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true;
+        if (/HTTP (402|429|503|403)/.test((e as Error).message)) unavailable=true;
       }
       if (accepted) {
         options.cache.save(result.fingerprint,accepted);

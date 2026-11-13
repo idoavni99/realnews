@@ -56,3 +56,10 @@ test('canonical duplicate articles do not increase decision work or outlet cover
   const result=await groupWithDecisions([item('a'),item('a')],client(()=>{throw new Error('No call');}),config);
   assert.equal(result.groups[0].items.length,1);assert.equal(result.calls,0);
 });
+
+test('owner-selected 0.8 threshold accepts equality and keeps a lower valid score separate',async()=>{
+  const accepted=await groupWithDecisions(['a','b'].map(item),client(()=>0.8),{...config,threshold:0.8});
+  assert.equal(accepted.groups.length,1);
+  const separate=await groupWithDecisions(['a','b'].map(item),client(()=>0.799),{...config,threshold:0.8});
+  assert.equal(separate.groups.length,2);assert.equal(separate.complete,true);
+});

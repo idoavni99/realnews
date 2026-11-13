@@ -55,3 +55,11 @@ test('runner keeps synthesis generative but never calls old LLM verification, an
     assert.equal(result[0].status,'ready');assert.equal(synthesis,1);assert.equal(verification,1);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('owner-selected verification boundary is inclusive 0.8 for every check',async()=>{
+  for(const score of [0.8,0.799]){
+    const scored:DecisionClient={async decide(request){return {answers:Object.fromEntries(Object.keys(request.questions).map(key=>[key,score])),diagnostics:{requested_model:'mock',content_chars:0}};}};
+    const result=await decisionVerifier(scored,0.8)(items,[candidate]);
+    assert.equal(result[0].supported,score===0.8);
+  }
+});

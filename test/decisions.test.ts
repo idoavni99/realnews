@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createDecisionClient,decisionBody,DECISION_REQUEST_BYTES} from '../src/decisions.ts';
-import {decisionPolicy,SELECTED_DECISION_MODEL,DISABLED_FALLBACK_CANDIDATES} from '../src/decision-policy.ts';
+import {decisionPolicy,SELECTED_DECISION_MODEL,SELECTED_FALLBACK_MODELS} from '../src/decision-policy.ts';
 
 const request={label:'Grouping' as const,state:{text:'מקור'},questions:{same:{type:'noul' as const,instructions:'Same event?'}}};
 const model='typesafe/jev-1.14';
@@ -40,16 +40,18 @@ test('oversized evidence is rejected before network rather than silently truncat
   assert.equal(calls,0);
 });
 
-test('configuration defaults off, selects approved Perplexity model, requires calibrated policy and rejects auto',()=>{
-  assert.equal(decisionPolicy({}),undefined);
-  assert.deepEqual(DISABLED_FALLBACK_CANDIDATES,['liquid/d1.1','typesafe/jev-1.14']);
+test('configuration always selects decision stages, uses approved Perplexity model, requires calibrated policy and rejects auto',()=>{
+  assert.throws(()=>decisionPolicy({}),/no configured provider/);
+  assert.deepEqual(SELECTED_FALLBACK_MODELS,['liquid/d1.1','typesafe/jev-1.14']);
   const env={REALNEWS_GROUPING:'decisions',OPENROUTER_API_KEY:'mock',REALNEWS_DECISION_MODEL:model,REALNEWS_DECISION_THRESHOLD:'0.9'};
   assert.equal(decisionPolicy(env)?.model,model);
   assert.equal(SELECTED_DECISION_MODEL,'perplexity/pplx-decider-v1.3:free');
   assert.equal(decisionPolicy({...env,REALNEWS_DECISION_MODEL:undefined})?.model,SELECTED_DECISION_MODEL);
-  assert.equal(decisionPolicy({...env,REALNEWS_DECISION_MODEL:undefined})?.verification,false);
+  assert.equal(decisionPolicy({...env,REALNEWS_DECISION_MODEL:undefined})?.verification,true);
   assert.equal(decisionPolicy({...env,REALNEWS_GROUPING:'lexical',REALNEWS_VERIFICATION:'decisions',REALNEWS_DECISION_MODEL:undefined})?.model,SELECTED_DECISION_MODEL);
-  for(const threshold of [undefined,'NaN','0.5','1','-1'])assert.throws(()=>decisionPolicy({...env,REALNEWS_DECISION_THRESHOLD:threshold}));
+  assert.equal(decisionPolicy({...env,REALNEWS_DECISION_THRESHOLD:undefined})?.threshold,0.8);
+  assert.equal(decisionPolicy({...env,REALNEWS_DECISION_THRESHOLD:''})?.threshold,0.8);
+  for(const threshold of ['NaN','0.5','1','-1'])assert.throws(()=>decisionPolicy({...env,REALNEWS_DECISION_THRESHOLD:threshold}));
   for(const value of ['', 'openrouter/auto']){
     assert.throws(()=>decisionPolicy({...env,REALNEWS_DECISION_MODEL:value}));
     assert.throws(()=>decisionBody(value,request));

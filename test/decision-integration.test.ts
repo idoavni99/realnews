@@ -30,3 +30,11 @@ test('pipeline imports and decision config reject unsupported auto before fetchi
   assert.notEqual(result.status,0);assert.match(result.stderr,/explicit REALNEWS_DECISION_MODEL/);
   assert.doesNotMatch(result.stderr,/ReferenceError|SyntaxError|FAILED|items\n/);
 });
+
+test('default path cannot silently fall back to old grouping/verifier toggles or require old publication enable flag',()=>{
+  assert.equal(runPolicy({OPENROUTER_API_KEY:'mock',REALNEWS_GROUPING:'lexical'}).grouping,true);
+  const workflow=readFileSync(new URL('../.github/workflows/daily.yml',import.meta.url),'utf8');
+  assert.doesNotMatch(workflow,/inputs\.grouping|REALNEWS_AUTOPUBLISH_GROUPING|REALNEWS_GROUPING:/);
+  const gate=readFileSync(new URL('../scripts/publication-gate.ts',import.meta.url),'utf8');
+  assert.match(gate,/publicationGate\(data,true\)/);
+});

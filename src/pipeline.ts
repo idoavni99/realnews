@@ -1,4 +1,5 @@
-import {decisionPolicy} from './decision-policy.ts';
+import {decisionFallback,requestBudget,budgetedLlm} from './decision-fallback.ts';
+import {decisionPolicy,SELECTED_FALLBACK_MODELS} from './decision-policy.ts';
 import {createDecisionClient} from './decisions.ts';
 import {groupWithDecisions} from './decision-grouping.ts';
 import {decisionVerifier} from './decision-verification.ts';
@@ -20,13 +21,13 @@ import { loadConfig, CONFIRMED_SIDES, weightedCoverage } from './config.ts';
 import { httpGet, sleep } from './http.ts';
 import { parseFeed, parseI24News, withinArticleWindow, type FeedItem } from './rss.ts';
 import { extractFulltext } from './extract.ts';
-import { clusterItems, type Cluster } from './cluster.ts';
+import { type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
 import { createLlmClient } from './llm.ts';
 import { auditedClient,auditedDecisionClient } from './call-audit.ts';
 import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
 import {createArticleSnapshot} from './article-snapshot.ts';
-import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
+import { validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import {publishableGroups} from './grouping-publication.ts';
 import { accessCaveats, synthesisInput, type StorySynthesis } from './synthesis.ts';
 import {orderedEvidence, summarizeStories, summaryCache} from './summary-runner.ts';
@@ -112,22 +113,22 @@ async function main() {
   const provider=createLlmClient(process.env);
   const callAudit:unknown[]=[];
   // Persist before/after every attempted call, including failed validation and cancellation.
-  const llm=provider?auditedClient(provider,join(reviewDir,'calls.json'),callAudit):undefined;
-  // Model-led grouping is an independent opt-in; summaries are separately enabled.
-  // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
-  const decisionClient=decisions?auditedDecisionClient(createDecisionClient(process.env.OPENROUTER_API_KEY!,decisions.model),join(reviewDir,'calls.json'),callAudit):undefined;
+  const summaryAttemptBudget=requestBudget(policy.maxCalls);
+  const groupingAttemptBudget=requestBudget(groupingConfig.maxCalls);
+  const llm=provider?budgetedLlm(auditedClient(provider,join(reviewDir,'calls.json'),callAudit),summaryAttemptBudget):undefined;
+  const decisionClient=decisions?decisionFallback([decisions.model,...SELECTED_FALLBACK_MODELS].filter((model,index,models)=>models.indexOf(model)===index).map(model=>auditedDecisionClient(createDecisionClient(process.env.OPENROUTER_API_KEY!,model),join(reviewDir,'calls.json'),callAudit)),{Grouping:groupingAttemptBudget,Verification:summaryAttemptBudget}):undefined;
   let grouping:GroupingResult|undefined;
   let groupingPublication:ReturnType<typeof publishableGroups>['manifest']|undefined;
   let rawClusters:(Cluster&{unvalidated?:boolean})[];
   if(policy.grouping) {
-    grouping=decisions?.grouping?await groupWithDecisions(items,decisionClient!,{threshold:decisions.threshold,maxCalls:groupingConfig.maxCalls,pause:()=>sleep(groupingConfig.delayMs)}):await groupArticles(items,llm!,groupingConfig);
+    grouping=await groupWithDecisions(items,decisionClient!,{threshold:decisions.threshold,maxCalls:groupingConfig.maxCalls,pause:()=>sleep(groupingConfig.delayMs)});
     // Private completed grouping checkpoint, never an approval to publish.
     writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify({...grouping,snapshot_run_id:articleSnapshot.run_id,snapshot_sha256:articleSnapshot.content_sha256}));
     const selected=publishableGroups(grouping,items);
     groupingPublication=selected.manifest;
     rawClusters=selected.groups.map(g=>({tokens:new Set<string>(),items:resolveArticles(g.articleIds,registry),unvalidated:false}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
-  } else rawClusters=clusterItems(items);
+  } else throw new Error('Decision grouping is required');
   const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published));
   for (const cluster of clusters) cluster.items=orderedEvidence(cluster.items);
   const summaries=await summarizeStories(clusters.map(c=>({items:c.items,heldBack:c.unvalidated})),{

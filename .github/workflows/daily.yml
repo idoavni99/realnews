@@ -18,10 +18,6 @@ on:
         description: Use openrouter/free for this staged test only (does not change provider default)
         type: boolean
         default: false
-      grouping:
-        description: Use model-led batched grouping independently (staged; quality gate required)
-        type: boolean
-        default: false
 
 concurrency:
   group: daily-digest
@@ -53,7 +49,7 @@ jobs:
           REALNEWS_GROUPING_BATCH_TOKENS: ${{ vars.REALNEWS_GROUPING_BATCH_TOKENS || '24000' }}
           REALNEWS_GROUPING_MAX_ARTICLES: '6'
           REALNEWS_GROUPING_OUTPUT_TOKENS_PER_ARTICLE: '1500'
-          REALNEWS_GROUPING: ${{ (inputs.grouping || (github.event_name == 'schedule' && vars.REALNEWS_GROUPING == 'model')) && 'model' || 'lexical' }}
+          REALNEWS_DECISION_THRESHOLD: ${{ vars.REALNEWS_DECISION_THRESHOLD }}
           OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || vars.OPENROUTER_MODEL || 'openrouter/auto' }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
@@ -83,8 +79,6 @@ jobs:
           retention-days: 1
       - name: Publication quality gate
         if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)
-        env:
-          REALNEWS_AUTOPUBLISH_GROUPING: ${{ vars.REALNEWS_AUTOPUBLISH_GROUPING }}
         run: node scripts/publication-gate.ts
       - name: Commit updated data
         if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish)

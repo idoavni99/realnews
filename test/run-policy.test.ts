@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {runPolicy} from '../src/run-policy.ts';
 import {publicationGate} from '../scripts/publication-gate.ts';
 test('grouping and synthesis are independent, missing provider and bad call cap fail',()=>{
- assert.deepEqual(runPolicy({}),{grouping:false,synthesis:false,maxCalls:60});
+ assert.throws(()=>runPolicy({}),/no configured/);
+ assert.deepEqual(runPolicy({OPENROUTER_API_KEY:'mock'}),{grouping:true,synthesis:false,maxCalls:60});
  assert.equal(runPolicy({REALNEWS_GROUPING:'model',OPENROUTER_API_KEY:'mock'}).synthesis,false);
- assert.equal(runPolicy({REALNEWS_SYNTHESIS_ENABLED:'true',OPENROUTER_API_KEY:'mock'}).grouping,false);
+ assert.equal(runPolicy({REALNEWS_SYNTHESIS_ENABLED:'true',OPENROUTER_API_KEY:'mock'}).grouping,true);
  assert.throws(()=>runPolicy({REALNEWS_GROUPING:'model'}),/no configured/);
- assert.throws(()=>runPolicy({REALNEWS_MAX_CALLS:'NaN'}),/Invalid/);
+ assert.throws(()=>runPolicy({REALNEWS_MAX_CALLS:'NaN',OPENROUTER_API_KEY:'mock'}),/Invalid/);
 });
 test('publication still blocks malformed and incomplete grouping without a manual approval path',()=>{
  for(const data of [null,{}, {stories:[null]}, {grouping:{complete:false},stories:[]},
