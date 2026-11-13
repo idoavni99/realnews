@@ -6,10 +6,12 @@ This PR adds an offline-tested integration, not a quality-tested deployment. Exi
 
 Decision stages remain off unless the process explicitly sets `REALNEWS_GROUPING=decisions` and/or `REALNEWS_VERIFICATION=decisions`. No workflow input, repository variable or secret is changed by this PR. Existing `model` grouping and LLM verification remain available until a separately approved activation.
 
+The owner selected `perplexity/pplx-decider-v1.3:free` for grouping and verification on November 13, 2026. This is now the default decision-model configuration only. Both decision stages remain off, no threshold is configured, and no provider request has been made. Synthesis remains unchanged.
+
 An enabled decision stage requires:
 
 - `OPENROUTER_API_KEY`, server-side, as before.
-- `REALNEWS_DECISION_MODEL`, an explicit compatible Decisions catalog model. There is no default or automatic substitution.
+- `REALNEWS_DECISION_MODEL` may explicitly override the selected Perplexity model with a compatible Decisions catalog model. An empty value or `openrouter/auto` is rejected; there is no provider fallback.
 - `REALNEWS_DECISION_THRESHOLD`, an explicitly evaluated acceptance threshold greater than 0.5 and less than 1. No threshold has been calibrated for Hebrew news in this PR.
 
 `openrouter/auto` is unsupported on Decisions in the current catalog and rejected locally. It stays unchanged for generative synthesis. Decisions use `POST https://openrouter.ai/api/alpha/decisions`, not chat completions. The endpoint is alpha and its contract can change.
@@ -40,7 +42,7 @@ The summary cache key includes decision model, threshold and policy version. Old
 
 Offline tests cover transport/contract shape, malformed answers, no-network size rejection, unique membership, ambiguity, transitive-chain prevention, uncertainty, failure/call caps, cache isolation and the synthesis-to-decision-verifier handoff. Mocks test control flow, not semantic model quality or real-provider compatibility.
 
-Before enabling: choose and pin a model, label independent Hebrew news cases, evaluate without publishing, calibrate the threshold, measure billed input and latency, and agree on the spend/call ceiling. Include same topic/different event, later coverage of one event, missing event times, conflicting places, altered quantities, reversed negation, allegation changed to fact, cross-side claims, valid paraphrases and embedded adversarial instructions. Include true positives so a verifier that rejects everything cannot pass. Repeat option/article order where relevant. No such provider evaluation was run for this PR.
+Before enabling: confirm account access to the selected model, label independent Hebrew news cases, evaluate without publishing, calibrate the threshold, measure billed input and latency, and agree on the spend/call ceiling. Include same topic/different event, later coverage of one event, missing event times, conflicting places, altered quantities, reversed negation, allegation changed to fact, cross-side claims, valid paraphrases and embedded adversarial instructions. Include true positives so a verifier that rejects everything cannot pass. Repeat option/article order where relevant. No such provider evaluation was run for this PR.
 
 ## Sources checked November 13, 2026
 
