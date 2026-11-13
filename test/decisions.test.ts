@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createDecisionClient,decisionBody,DECISION_REQUEST_BYTES} from '../src/decisions.ts';
-import {decisionPolicy,SELECTED_DECISION_MODEL} from '../src/decision-policy.ts';
+import {decisionPolicy,SELECTED_DECISION_MODEL,DISABLED_FALLBACK_CANDIDATES} from '../src/decision-policy.ts';
 
 const request={label:'Grouping' as const,state:{text:'מקור'},questions:{same:{type:'noul' as const,instructions:'Same event?'}}};
 const model='typesafe/jev-1.14';
@@ -42,6 +42,7 @@ test('oversized evidence is rejected before network rather than silently truncat
 
 test('configuration defaults off, selects approved Perplexity model, requires calibrated policy and rejects auto',()=>{
   assert.equal(decisionPolicy({}),undefined);
+  assert.deepEqual(DISABLED_FALLBACK_CANDIDATES,['liquid/d1.1','typesafe/jev-1.14']);
   const env={REALNEWS_GROUPING:'decisions',OPENROUTER_API_KEY:'mock',REALNEWS_DECISION_MODEL:model,REALNEWS_DECISION_THRESHOLD:'0.9'};
   assert.equal(decisionPolicy(env)?.model,model);
   assert.equal(SELECTED_DECISION_MODEL,'perplexity/pplx-decider-v1.3:free');

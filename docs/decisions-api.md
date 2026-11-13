@@ -8,6 +8,8 @@ Decision stages remain off unless the process explicitly sets `REALNEWS_GROUPING
 
 The owner selected `perplexity/pplx-decider-v1.3:free` for grouping and verification on November 13, 2026. This is now the default decision-model configuration only. Both decision stages remain off, no threshold is configured, and no provider request has been made. Synthesis remains unchanged.
 
+The owner also selected `liquid/d1.1` and `typesafe/jev-1.14` as fallback candidates. Their IDs are recorded in `DISABLED_FALLBACK_CANDIDATES`, in the order mentioned, but no runtime failover consumes this list. Fallback order, triggering conditions, provider-attempt accounting and an approved paid budget must be settled before implementing or enabling failover. A valid negative or uncertain decision is not a transport failure and must not silently trigger another paid opinion.
+
 An enabled decision stage requires:
 
 - `OPENROUTER_API_KEY`, server-side, as before.

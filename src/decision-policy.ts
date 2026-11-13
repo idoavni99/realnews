@@ -1,6 +1,7 @@
 import {validateDecisionThreshold} from './decisions.ts';
 
 export const SELECTED_DECISION_MODEL='perplexity/pplx-decider-v1.3:free';
+export const DISABLED_FALLBACK_CANDIDATES=['liquid/d1.1','typesafe/jev-1.14'] as const;
 
 export function decisionPolicy(env:Record<string,string|undefined>) {
   const grouping=env.REALNEWS_GROUPING==='decisions';
