@@ -1,3 +1,7 @@
+import {decisionPolicy} from './decision-policy.ts';
+import {createDecisionClient} from './decisions.ts';
+import {groupWithDecisions} from './decision-grouping.ts';
+import {decisionVerifier} from './decision-verification.ts';
 /**
  * Daily news pipeline: fetch RSS -> extract full text -> cluster stories -> site/data.json.
  * Dependency-free TypeScript; runs directly on Node >= 22.18 (built-in type stripping).
@@ -19,7 +23,7 @@ import { extractFulltext } from './extract.ts';
 import { clusterItems, type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
 import { createLlmClient } from './llm.ts';
-import { auditedClient } from './call-audit.ts';
+import { auditedClient,auditedDecisionClient } from './call-audit.ts';
 import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
 import {createArticleSnapshot} from './article-snapshot.ts';
 import { groupArticles, validateGroupingConfig, type GroupingResult } from './grouping.ts';
@@ -57,6 +61,7 @@ function storySummary(items: FeedItem[]): string {
 
 async function main() {
   const policy=runPolicy(process.env);
+  const decisions=decisionPolicy(process.env);
   const groupingConfig=validateGroupingConfig({
     delayMs:Number(process.env.REALNEWS_LLM_DELAY_MS??5000),
     maxCalls:Number(process.env.REALNEWS_GROUPING_MAX_CALLS??30),
@@ -110,11 +115,12 @@ async function main() {
   const llm=provider?auditedClient(provider,join(reviewDir,'calls.json'),callAudit):undefined;
   // Model-led grouping is an independent opt-in; summaries are separately enabled.
   // Otherwise the conservative exact-headline clustering is used. Nothing here publishes anything by itself.
+  const decisionClient=decisions?auditedDecisionClient(createDecisionClient(process.env.OPENROUTER_API_KEY!,decisions.model),join(reviewDir,'calls.json'),callAudit):undefined;
   let grouping:GroupingResult|undefined;
   let groupingPublication:ReturnType<typeof publishableGroups>['manifest']|undefined;
   let rawClusters:(Cluster&{unvalidated?:boolean})[];
   if(policy.grouping) {
-    grouping=await groupArticles(items,llm!,groupingConfig);
+    grouping=decisions?.grouping?await groupWithDecisions(items,decisionClient!,{threshold:decisions.threshold,maxCalls:groupingConfig.maxCalls,pause:()=>sleep(groupingConfig.delayMs)}):await groupArticles(items,llm!,groupingConfig);
     // Private completed grouping checkpoint, never an approval to publish.
     writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify({...grouping,snapshot_run_id:articleSnapshot.run_id,snapshot_sha256:articleSnapshot.content_sha256}));
     const selected=publishableGroups(grouping,items);
@@ -126,6 +132,7 @@ async function main() {
   for (const cluster of clusters) cluster.items=orderedEvidence(cluster.items);
   const summaries=await summarizeStories(clusters.map(c=>({items:c.items,heldBack:c.unvalidated})),{
     enabled:policy.synthesis,llm,maxCalls:policy.maxCalls,
+    ...(decisions?.verification?{verify:decisionVerifier(decisionClient!,decisions.threshold),verificationIdentity:decisions.cacheIdentity}:{}),
     cache:summaryCache(join(ROOT,'.cache','synthesis.json')),
   });
   const review=summaries.map((result,i)=>({...result,story:i,evidence:synthesisInput(clusters[i].items)}));
