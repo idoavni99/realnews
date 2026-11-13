@@ -6,7 +6,7 @@ import type {FeedItem} from './rss.ts';
 import type {LlmClient} from './llm.ts';
 import {sleep} from './http.ts';
 import {synthesizeStory, synthesisInput, validateSynthesis, type StorySynthesis} from './synthesis.ts';
-import {verifyCandidates} from './verification.ts';
+import {verifyCandidates, type VerificationCandidate, type Verdict} from './verification.ts';
 
 export interface SummaryResult {
   fingerprint: string;
@@ -19,9 +19,9 @@ export function orderedEvidence(items: FeedItem[]): FeedItem[] {
   return [...items].sort((a,b)=>canonicalUrl(a.url).localeCompare(canonicalUrl(b.url)));
 }
 
-export function summaryFingerprint(items: FeedItem[]): string {
+export function summaryFingerprint(items: FeedItem[], verificationIdentity?:string): string {
   return createHash('sha256').update(JSON.stringify({version: 10,
-    urls: items.map(a=>canonicalUrl(a.url)), evidence: synthesisInput(items)})).digest('hex');
+    ...(verificationIdentity?{verificationIdentity}:{}), urls: items.map(a=>canonicalUrl(a.url)), evidence: synthesisInput(items)})).digest('hex');
 }
 
 export function hasSourceText(items: FeedItem[]): boolean {
@@ -54,10 +54,10 @@ export function summaryCache(path: string) {
 export async function summarizeStories(
   stories: {items: FeedItem[]; heldBack?: boolean}[],
   options: {enabled: boolean; llm?: LlmClient; maxCalls: number; cache: ReturnType<typeof summaryCache>;
-    pause?: ()=>Promise<void>},
+    verify?: (items:FeedItem[],candidates:VerificationCandidate[])=>Promise<Verdict[]>; verificationIdentity?:string; pause?: ()=>Promise<void>},
 ): Promise<SummaryResult[]> {
   const results=stories.map(({items,heldBack})=>{
-    const fingerprint=summaryFingerprint(items);
+    const fingerprint=summaryFingerprint(items,options.verificationIdentity);
     const result: SummaryResult={fingerprint,status:'not_configured',attempts:[]};
     if (heldBack) result.status='grouping_unvalidated';
     else if (options.enabled) {
@@ -83,13 +83,14 @@ export async function summarizeStories(
         const draft=await synthesizeStory(stories[i].items,options.llm);
         attempt.draft=draft;
         calls++;
-        const verdicts=await verifyCandidates(stories[i].items,[{id:'summary',summary:draft}],options.llm);
+        const candidates=[{id:'summary',summary:draft}];
+        const verdicts=options.verify?await options.verify(stories[i].items,candidates):await verifyCandidates(stories[i].items,candidates,options.llm);
         attempt.verdicts=verdicts;
         if (!verdicts[0]?.supported) throw new Error('Verification rejected summary');
         accepted=draft;
       } catch(e) {
         attempt.error=(e as Error).message.slice(0,250);
-        if (/HTTP (429|503|403)/.test((e as Error).message)) unavailable=true;
+        if (/HTTP (402|429|503|403)/.test((e as Error).message)) unavailable=true;
       }
       if (accepted) {
         options.cache.save(result.fingerprint,accepted);

@@ -43,7 +43,7 @@ test('isolated local contract rejects cross-side, absent-side, unsupported numbe
 test('production pacing is two seconds and rate-limit errors still stop later calls',()=>{
  const pipeline=readFileSync(new URL('../src/summary-runner.ts',import.meta.url),'utf8');
  assert.match(pipeline,/sleep\(2000\)/);assert.ok(!pipeline.includes('await sleep(10000)'));
- assert.ok(pipeline.includes('if (/HTTP (429|503|403)/.test'));
+ assert.ok(pipeline.includes('if (/HTTP (402|429|503|403)/.test'));
 });
 test('number beyond exact model evidence prefix is rejected before verification',async()=>{
  const article={...items[0],title:'כותרת',fulltext:'א'.repeat(4100)+' 987654'};

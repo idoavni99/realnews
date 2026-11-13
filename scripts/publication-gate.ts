@@ -53,6 +53,6 @@ export function publicationGate(data: any, allowModelGrouping=false) {
 if (process.argv[1]?.endsWith('/publication-gate.ts')) {
   const path='site/data.json';
   const data=JSON.parse(readFileSync(path,'utf8'));
-  const publishable=publicationGate(data,process.env.REALNEWS_AUTOPUBLISH_GROUPING==='true');
+  const publishable=publicationGate(data,true);
   writeFileSync(path,JSON.stringify(publishable,null,1));
 }

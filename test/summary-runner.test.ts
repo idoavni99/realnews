@@ -76,7 +76,7 @@ test('missing body and lead skip all attempts; RSS lead is still valid source te
 });
 
 test('rate-limit stops later paid requests; call cap bounds all rounds',async()=>{
-  for (const error of ['HTTP 429','HTTP 503','HTTP 403','Transient']) {
+  for (const error of ['HTTP 402','HTTP 429','HTTP 503','HTTP 403','Transient']) {
     const state=setup();let calls=0;
     try {
       const result=await summarizeStories(stories,{enabled:true,maxCalls:2,cache:state.cache,pause,
