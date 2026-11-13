@@ -69,3 +69,11 @@ node src/pipeline.ts   # writes site/data.json
 node --test test/pipeline.test.ts   # unit tests
 cd site && python3 -m http.server 8000
 ```
+
+### Concurrent edits during publication
+
+The publication step fetches current `main` before pushing its generated-data-only
+commit. UI/docs changes and cron/timezone-only edits are preserved by a bounded
+rebase. It never force-pushes. If another digest, generation code, source labels,
+or workflow behavior changed during the run, publication stops with an explicit
+reason and needs a fresh run. It does not rerun the model pipeline automatically.
