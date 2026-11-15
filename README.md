@@ -12,7 +12,9 @@ political map. Static site with a scheduled TypeScript news pipeline.
 2. `.github/workflows/daily.yml` runs it at 09:00 and 21:00 Israel time on GitHub Actions and
    commits the refreshed `data.json`.
 3. `site/index.html` is a static RTL page that renders the feed: headline,
-   short summary, and a right/left coverage bar per story.
+   short summary, and a right/left coverage bar per story. Up to 3 previous
+   runs are archived under `site/history/` and can be viewed from the edition
+   selector (see `docs/run-history.md`).
 
 ## Product rules that the code enforces
 

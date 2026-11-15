@@ -46,3 +46,43 @@ test('complete digest shows bars without the partial label',()=>{
  assert.ok(feed.includes('seg-left'));
  assert.ok(!feed.includes('האחוזים משקפים רק את הכתבות שפורסמו'));
 });
+
+test('edition selector lists past editions, validates the edition param and builds URLs',()=>{
+ const c=context('?edition=2026-11-13T06-00-00Z');
+ c.run(`EDITIONS=[{id:'2026-11-14T06-00-00Z',generated_at:'2026-11-14T06:00:00.000Z',stories:20},{id:'2026-11-13T06-00-00Z',generated_at:'2026-11-13T06:00:00.000Z',stories:18}];populateEditions();`);
+ assert.equal(c.run('readEdition()'),'2026-11-13T06-00-00Z');
+ assert.equal(c.run(`editionUrl('')`),'data.json');
+ assert.equal(c.run(`editionUrl('2026-11-13T06-00-00Z')`),'history/2026-11-13T06-00-00Z.json');
+ const html=c.node('edition').innerHTML;
+ assert.ok(html.includes('המהדורה האחרונה'));
+ assert.ok((html.match(/<option/g)||[]).length===3);
+ assert.ok(html.includes('value="2026-11-14T06-00-00Z"'));
+ assert.equal(c.node('edition-row').hidden,false);
+ const c2=context('?edition=unknown');
+ c2.run(`EDITIONS=[];populateEditions();`);
+ assert.equal(c2.run('readEdition()'),'');
+ assert.equal(c2.node('edition-row').hidden,true);
+});
+
+test('viewing a past edition shows the old-edition banner and suppresses the stale warning',()=>{
+ const c=context('?edition=old');
+ c.run(`EDITIONS=[{id:'old',generated_at:'2026-11-10T06:00:00.000Z',stories:1}];populateEditions();`);
+ c.run(`CURRENT_EDITION='old';applyData({generated_at:new Date(Date.now()-72*36e5).toISOString(),window_hours:12,monitored_sides:['left','right'],source_health:{},stories:[{headline:'Old',summary:'lead',total:1,counts:{left:1},articles:[{side:'left',title:'t'}]}]});`);
+ const banner=c.node('edition-banner');
+ assert.equal(banner.hidden,false);
+ assert.ok(banner.innerHTML.includes('מוצגת מהדורה ישנה'));
+ assert.ok(!c.node('feed').innerHTML.includes('מושהית'));
+ c.run(`CURRENT_EDITION='';applyData({generated_at:new Date(Date.now()-72*36e5).toISOString(),window_hours:12,monitored_sides:['left','right'],source_health:{},stories:[{headline:'New',summary:'lead',total:1,counts:{left:1},articles:[{side:'left',title:'t'}]}]});`);
+ assert.equal(c.node('edition-banner').hidden,true);
+ assert.ok(c.node('feed').innerHTML.includes('מושהית'));
+});
+
+test('switching editions updates the query string and keeps filters',()=>{
+ const c=context('?q=%D7%9B%D7%A1%D7%A3&side=left');
+ c.run(`EDITIONS=[{id:'e1',generated_at:'2026-11-13T06:00:00.000Z',stories:1}];populateEditions();`);
+ c.run(`switchEdition('e1')`);
+ const url=new URL(c.location.href);
+ assert.equal(url.searchParams.get('edition'),'e1');
+ assert.equal(url.searchParams.get('q'),'כסף');
+ assert.equal(url.searchParams.get('side'),'left');
+});
