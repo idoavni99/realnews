@@ -7,12 +7,13 @@ output=$(mktemp)
 trap 'rm -f "$output"' EXIT
 
 git add site/data.json
+if [ -d site/history ]; then git add -A site/history; fi
 if git diff --cached --quiet; then
   echo 'Digest unchanged; nothing to publish'
   exit 0
 fi
-if [ "$(git diff --cached --name-only)" != 'site/data.json' ] || ! git diff --quiet; then
-  echo 'Publication blocked: expected only the generated site/data.json change' >&2
+if git diff --cached --name-only | grep -vxE 'site/data\.json|site/history/[^/]+\.json' | grep -q . || ! git diff --quiet; then
+  echo 'Publication blocked: expected only the generated site/data.json and site/history changes' >&2
   exit 1
 fi
 git commit -m "Daily digest $(date -u +%Y-%m-%d)"

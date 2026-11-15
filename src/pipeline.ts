@@ -31,6 +31,7 @@ import { validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import {publishableGroups} from './grouping-publication.ts';
 import { accessCaveats, synthesisInput, type StorySynthesis } from './synthesis.ts';
 import {orderedEvidence, summarizeStories, summaryCache} from './summary-runner.ts';
+import {archiveCurrentEdition} from './editions.ts';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -174,6 +175,12 @@ async function main() {
   writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,calls:callAudit,accounting:{attempts:callAudit.length,reported_cost_usd:reportedCost,cost_records_missing:missingCost,usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'},stories:review},null,2));
   writeFileSync(join(reviewDir,'staged-data.json'),JSON.stringify(out,null,2));
   const dest = join(ROOT, process.env.REALNEWS_OUT ?? 'site/data.json');
+  // Archive the previously published digest before replacing it. A staged
+  // REALNEWS_OUT run never touches the public history.
+  if (!process.env.REALNEWS_OUT) {
+    const archived=archiveCurrentEdition(ROOT);
+    console.error(archived?`archived past edition ${archived.id} (${archived.stories} stories)`:'no previous digest to archive');
+  }
   writeFileSync(dest, JSON.stringify(out, null, 1));
   const nFull = items.filter((i) => i.extraction === 'full').length;
   console.error(`wrote ${stories.length} stories, ${items.length} items (${nFull} full-text) -> ${dest}`);
