@@ -48,5 +48,12 @@ sources:
     name: כיכר השבת
     side: right
     rss: https://a.kikar.co.il/v1/rss/articles/latest/rss2
+  # שקוף: WordPress RSS verified live 2026-11-15. Article pages sit behind Cloudflare,
+  # so full-text extraction is not possible - lead-only, like haaretz/i24.
+  - id: shakuf
+    name: שקוף
+    side: left
+    rss: https://shakuf.co.il/feed
+    extraction: rss_only
 window_hours: 12
 max_articles_per_source: 8
