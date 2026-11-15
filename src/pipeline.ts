@@ -1,5 +1,5 @@
-import {decisionFallback,requestBudget,budgetedLlm} from './decision-fallback.ts';
-import {decisionPolicy,SELECTED_FALLBACK_MODELS} from './decision-policy.ts';
+import {decisionFallback, requestBudget, budgetedLlm} from './decision-fallback.ts';
+import {decisionPolicy, SELECTED_FALLBACK_MODELS} from './decision-policy.ts';
 import {createDecisionClient} from './decisions.ts';
 import {groupWithDecisions} from './decision-grouping.ts';
 import {decisionVerifier} from './decision-verification.ts';
@@ -24,8 +24,8 @@ import { extractFulltext } from './extract.ts';
 import { type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
 import { createLlmClient } from './llm.ts';
-import { auditedClient,auditedDecisionClient } from './call-audit.ts';
-import {articleRegistry,resolveArticles,articleId} from './article-registry.ts';
+import { auditedClient, auditedDecisionClient } from './call-audit.ts';
+import {articleRegistry, resolveArticles, articleId} from './article-registry.ts';
 import {createArticleSnapshot} from './article-snapshot.ts';
 import { validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import {publishableGroups} from './grouping-publication.ts';
@@ -62,18 +62,18 @@ function storySummary(items: FeedItem[]): string {
 }
 
 async function main() {
-  const policy=runPolicy(process.env);
-  const decisions=decisionPolicy(process.env);
-  const groupingConfig=validateGroupingConfig({
-    delayMs:Number(process.env.REALNEWS_LLM_DELAY_MS??5000),
-    maxCalls:Number(process.env.REALNEWS_GROUPING_MAX_CALLS??30),
-    batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS??24000),
-    maxArticlesPerBatch:Number(process.env.REALNEWS_GROUPING_MAX_ARTICLES??6),
-    outputTokensPerArticle:Number(process.env.REALNEWS_GROUPING_OUTPUT_TOKENS_PER_ARTICLE??1500),
-    reconcile:process.env.REALNEWS_GROUPING_RECONCILE==='true',
+  const policy = runPolicy(process.env);
+  const decisions = decisionPolicy(process.env);
+  const groupingConfig = validateGroupingConfig({
+    delayMs:Number(process.env.REALNEWS_LLM_DELAY_MS ?? 5000),
+    maxCalls:Number(process.env.REALNEWS_GROUPING_MAX_CALLS ?? 30),
+    batchTokens:Number(process.env.REALNEWS_GROUPING_BATCH_TOKENS ?? 24000),
+    maxArticlesPerBatch:Number(process.env.REALNEWS_GROUPING_MAX_ARTICLES ?? 6),
+    outputTokensPerArticle:Number(process.env.REALNEWS_GROUPING_OUTPUT_TOKENS_PER_ARTICLE ?? 1500),
+    reconcile:process.env.REALNEWS_GROUPING_RECONCILE === 'true',
   });
   const cfg = loadConfig(ROOT);
-  const windowAsOf=Date.now();
+  const windowAsOf = Date.now();
   const only = process.env.REALNEWS_SOURCES?.split(',').map(s => s.trim()).filter(Boolean);
   const sources = only?.length ? cfg.sources.filter(s => only.includes(s.id)) : cfg.sources;
   const sourceHealth: Record<string, { ok: boolean; items: number; side: string; name: string; status: string }> = {};
@@ -82,7 +82,7 @@ async function main() {
     try {
       const payload = await httpGet(s.rss);
       const got = (s.format === 'i24_json' ? parseI24News(payload, s) : parseFeed(payload, s))
-        .filter(i => withinArticleWindow(i,windowAsOf,cfg.windowHours))
+        .filter(i => withinArticleWindow(i, windowAsOf, cfg.windowHours))
         .slice(0, cfg.maxArticlesPerSource);
       sourceHealth[s.id] = { ok: got.length > 0, items: got.length, side: s.side, name: s.name, status: got.length ? 'ok' : 'no_recent_items' };
       console.error(`${s.id}: ${got.length} items`);
@@ -107,40 +107,40 @@ async function main() {
       .map((h) => h.side),
   )].sort();
   const stories: Story[] = [];
-  const reviewDir=join(ROOT,'.review'); mkdirSync(reviewDir,{recursive:true});
-  const registry=articleRegistry(items);
-  const articleSnapshot=createArticleSnapshot(items);
-  writeFileSync(join(reviewDir,'articles.json'),JSON.stringify(articleSnapshot),{mode:0o600});
-  const provider=createLlmClient(process.env);
-  const callAudit:unknown[]=[];
+  const reviewDir = join(ROOT, '.review'); mkdirSync(reviewDir, {recursive:true});
+  const registry = articleRegistry(items);
+  const articleSnapshot = createArticleSnapshot(items);
+  writeFileSync(join(reviewDir, 'articles.json'), JSON.stringify(articleSnapshot), {mode:0o600});
+  const provider = createLlmClient(process.env);
+  const callAudit:unknown[] = [];
   // Persist before/after every attempted call, including failed validation and cancellation.
-  const summaryAttemptBudget=requestBudget(policy.maxCalls);
-  const groupingAttemptBudget=requestBudget(groupingConfig.maxCalls);
-  const llm=provider?budgetedLlm(auditedClient(provider,join(reviewDir,'calls.json'),callAudit),summaryAttemptBudget):undefined;
-  const decisionClient=decisions?decisionFallback([decisions.model,...SELECTED_FALLBACK_MODELS].filter((model,index,models)=>models.indexOf(model)===index).map(model=>auditedDecisionClient(createDecisionClient(process.env.OPENROUTER_API_KEY!,model),join(reviewDir,'calls.json'),callAudit)),{Grouping:groupingAttemptBudget,Verification:summaryAttemptBudget}):undefined;
-  let grouping:GroupingResult|undefined;
-  let groupingPublication:ReturnType<typeof publishableGroups>['manifest']|undefined;
-  let rawClusters:(Cluster&{unvalidated?:boolean})[];
-  if(policy.grouping) {
-    grouping=await groupWithDecisions(items,decisionClient!,{threshold:decisions.threshold,maxCalls:groupingConfig.maxCalls,pause:()=>sleep(groupingConfig.delayMs)});
+  const summaryAttemptBudget = requestBudget(policy.maxCalls);
+  const groupingAttemptBudget = requestBudget(groupingConfig.maxCalls);
+  const llm = provider ? budgetedLlm(auditedClient(provider, join(reviewDir, 'calls.json'), callAudit), summaryAttemptBudget) : undefined;
+  const decisionClient = decisions ? decisionFallback([decisions.model, ...SELECTED_FALLBACK_MODELS].filter((model, index, models)=>models.indexOf(model) === index).map(model=>auditedDecisionClient(createDecisionClient(process.env.OPENROUTER_API_KEY!, model), join(reviewDir, 'calls.json'), callAudit)), {Grouping:groupingAttemptBudget, Verification:summaryAttemptBudget}) : undefined;
+  let grouping:GroupingResult | undefined;
+  let groupingPublication:ReturnType<typeof publishableGroups>['manifest'] | undefined;
+  let rawClusters:(Cluster & {unvalidated?:boolean})[];
+  if (policy.grouping) {
+    grouping = await groupWithDecisions(items, decisionClient!, {threshold:decisions.threshold, maxCalls:groupingConfig.maxCalls, pause:()=>sleep(groupingConfig.delayMs)});
     // Private completed grouping checkpoint, never an approval to publish.
-    writeFileSync(join(reviewDir,'grouping.json'),JSON.stringify({...grouping,snapshot_run_id:articleSnapshot.run_id,snapshot_sha256:articleSnapshot.content_sha256}));
-    const selected=publishableGroups(grouping,items);
-    groupingPublication=selected.manifest;
-    rawClusters=selected.groups.map(g=>({tokens:new Set<string>(),items:resolveArticles(g.articleIds,registry),unvalidated:false}));
+    writeFileSync(join(reviewDir, 'grouping.json'), JSON.stringify({...grouping, snapshot_run_id:articleSnapshot.run_id, snapshot_sha256:articleSnapshot.content_sha256}));
+    const selected = publishableGroups(grouping, items);
+    groupingPublication = selected.manifest;
+    rawClusters = selected.groups.map(g=>({tokens:new Set<string>(), items:resolveArticles(g.articleIds, registry), unvalidated:false}));
     console.error(`grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map(b=>b.status).join(',')}`);
   } else throw new Error('Decision grouping is required');
-  const clusters=rawClusters.sort((a,b)=>b.items.length-a.items.length || Date.parse(b.items[0].published)-Date.parse(a.items[0].published));
-  for (const cluster of clusters) cluster.items=orderedEvidence(cluster.items);
-  const summaries=await summarizeStories(clusters.map(c=>({items:c.items,heldBack:c.unvalidated})),{
-    enabled:policy.synthesis,llm,maxCalls:policy.maxCalls,
-    ...(decisions?.verification?{verify:decisionVerifier(decisionClient!,decisions.threshold),verificationIdentity:decisions.cacheIdentity}:{}),
-    cache:summaryCache(join(ROOT,'.cache','synthesis.json')),
+  const clusters = rawClusters.sort((a, b)=>b.items.length - a.items.length || Date.parse(b.items[0].published) - Date.parse(a.items[0].published));
+  for (const cluster of clusters) cluster.items = orderedEvidence(cluster.items);
+  const summaries = await summarizeStories(clusters.map(c=>({items:c.items, heldBack:c.unvalidated})), {
+    enabled:policy.synthesis, llm, maxCalls:policy.maxCalls,
+    ...(decisions?.verification ? {verify:decisionVerifier(decisionClient!, decisions.threshold), verificationIdentity:decisions.cacheIdentity} : {}),
+    cache:summaryCache(join(ROOT, '.cache', 'synthesis.json')),
   });
-  const review=summaries.map((result,i)=>({...result,story:i,evidence:synthesisInput(clusters[i].items)}));
-  for (const [index,c] of clusters.entries()) {
-    const {synthesis,status:synthesis_status}=summaries[index];
-    const heldBack=!!c.unvalidated;
+  const review = summaries.map((result, i)=>({...result, story:i, evidence:synthesisInput(clusters[i].items)}));
+  for (const [index, c] of clusters.entries()) {
+    const {synthesis, status:synthesis_status} = summaries[index];
+    const heldBack = !!c.unvalidated;
     const counts: Record<string, number> = {};
     for (const i of c.items) {
       if (monitoredSides.includes(i.side)) counts[i.side] = (counts[i.side] ?? 0) + 1;
@@ -149,12 +149,12 @@ async function main() {
       headline: c.items.reduce((a, b) => (b.title.length > a.title.length ? b : a)).title,
       summary: storySummary(c.items), // Existing source text, never a generated event summary.
       synthesis, synthesis_status, caveats: accessCaveats(c.items),
-      ...(grouping?{grouping_status:heldBack?'unvalidated':'schema_assigned'}:{}),
+      ...(grouping ? {grouping_status:heldBack ? 'unvalidated' : 'schema_assigned'} : {}),
       counts, // actual article counts per raw owner label
       coverage_weighted: weightedCoverage(counts), // weighted shares, not article counts
       total: c.items.length,
       articles: c.items.map((i) => ({
-        article_id:articleId(i.url),source: i.sourceName, side: i.side, title: i.title, url: i.url,
+        article_id:articleId(i.url), source: i.sourceName, side: i.side, title: i.title, url: i.url,
         extraction: i.extraction ?? 'lead_only', summary: i.summary.slice(0, 300),
       })),
     });
@@ -166,20 +166,20 @@ async function main() {
     window_as_of: new Date(windowAsOf).toISOString(),
     monitored_sides: monitoredSides,
     source_health: sourceHealth,
-    ...(groupingPublication?{grouping:groupingPublication}:{}),
+    ...(groupingPublication ? {grouping:groupingPublication} : {}),
     stories,
   };
-  const reportedCost=callAudit.reduce((sum:number,a:any)=>sum+(typeof a.usage?.cost==='number'?a.usage.cost:0),0);
-  const missingCost=callAudit.filter((a:any)=>typeof a.usage?.cost!=='number').length;
+  const reportedCost = callAudit.reduce((sum:number, a:any)=>sum + (typeof a.usage?.cost === 'number' ? a.usage.cost : 0), 0);
+  const missingCost = callAudit.filter((a:any)=>typeof a.usage?.cost !== 'number').length;
   console.error(`model accounting: attempts=${callAudit.length}, reported cost USD=${reportedCost.toFixed(8)}, missing cost records=${missingCost}; missing records are NOT zero cost`);
-  writeFileSync(join(reviewDir,'evidence.json'),JSON.stringify({generated_at:out.generated_at,grouping,calls:callAudit,accounting:{attempts:callAudit.length,reported_cost_usd:reportedCost,cost_records_missing:missingCost,usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'},stories:review},null,2));
-  writeFileSync(join(reviewDir,'staged-data.json'),JSON.stringify(out,null,2));
+  writeFileSync(join(reviewDir, 'evidence.json'), JSON.stringify({generated_at:out.generated_at, grouping, calls:callAudit, accounting:{attempts:callAudit.length, reported_cost_usd:reportedCost, cost_records_missing:missingCost, usage_missing:callAudit.filter((a:any)=>!a.usage).length, note:'Provider usage/cost may be delayed or absent; key ledger remains spending source of truth'}, stories:review}, null, 2));
+  writeFileSync(join(reviewDir, 'staged-data.json'), JSON.stringify(out, null, 2));
   const dest = join(ROOT, process.env.REALNEWS_OUT ?? 'site/data.json');
   // Archive the previously published digest before replacing it. A staged
   // REALNEWS_OUT run never touches the public history.
   if (!process.env.REALNEWS_OUT) {
-    const archived=archiveCurrentEdition(ROOT);
-    console.error(archived?`archived past edition ${archived.id} (${archived.stories} stories)`:'no previous digest to archive');
+    const archived = archiveCurrentEdition(ROOT);
+    console.error(archived ? `archived past edition ${archived.id} (${archived.stories} stories)` : 'no previous digest to archive');
   }
   writeFileSync(dest, JSON.stringify(out, null, 1));
   const nFull = items.filter((i) => i.extraction === 'full').length;

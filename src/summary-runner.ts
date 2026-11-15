@@ -16,12 +16,12 @@ export interface SummaryResult {
 }
 
 export function orderedEvidence(items: FeedItem[]): FeedItem[] {
-  return [...items].sort((a,b)=>canonicalUrl(a.url).localeCompare(canonicalUrl(b.url)));
+  return [...items].sort((a, b)=>canonicalUrl(a.url).localeCompare(canonicalUrl(b.url)));
 }
 
 export function summaryFingerprint(items: FeedItem[], verificationIdentity?:string): string {
   return createHash('sha256').update(JSON.stringify({version: 10,
-    ...(verificationIdentity?{verificationIdentity}:{}), urls: items.map(a=>canonicalUrl(a.url)), evidence: synthesisInput(items)})).digest('hex');
+    ...(verificationIdentity ? {verificationIdentity} : {}), urls: items.map(a=>canonicalUrl(a.url)), evidence: synthesisInput(items)})).digest('hex');
 }
 
 export function hasSourceText(items: FeedItem[]): boolean {
@@ -29,24 +29,24 @@ export function hasSourceText(items: FeedItem[]): boolean {
 }
 
 export function summaryCache(path: string) {
-  let entries: Record<string,StorySynthesis> = {};
+  let entries: Record<string, StorySynthesis> = {};
   if (existsSync(path)) {
     try {
-      const value=JSON.parse(readFileSync(path,'utf8'));
-      if (value && typeof value==='object' && !Array.isArray(value)) entries=value;
+      const value = JSON.parse(readFileSync(path, 'utf8'));
+      if (value && typeof value === 'object' && !Array.isArray(value)) entries = value;
     } catch { console.error('Ignoring invalid synthesis cache'); }
   }
   return {
     get(key: string, items: FeedItem[]) {
-      try { return entries[key] ? validateSynthesis(entries[key],items) : undefined; }
+      try { return entries[key] ? validateSynthesis(entries[key], items) : undefined; }
       catch { return undefined; }
     },
     save(key: string, value: StorySynthesis) {
-      entries[key]=value;
-      mkdirSync(dirname(path),{recursive:true});
-      const temporary=path+'.tmp';
-      writeFileSync(temporary,JSON.stringify(entries),{mode:0o600});
-      renameSync(temporary,path);
+      entries[key] = value;
+      mkdirSync(dirname(path), {recursive:true});
+      const temporary = path + '.tmp';
+      writeFileSync(temporary, JSON.stringify(entries), {mode:0o600});
+      renameSync(temporary, path);
     },
   };
 }
@@ -54,54 +54,54 @@ export function summaryCache(path: string) {
 export async function summarizeStories(
   stories: {items: FeedItem[]; heldBack?: boolean}[],
   options: {enabled: boolean; llm?: LlmClient; maxCalls: number; cache: ReturnType<typeof summaryCache>;
-    verify?: (items:FeedItem[],candidates:VerificationCandidate[])=>Promise<Verdict[]>; verificationIdentity?:string; pause?: ()=>Promise<void>},
+    verify?: (items:FeedItem[], candidates:VerificationCandidate[])=>Promise<Verdict[]>; verificationIdentity?:string; pause?: ()=>Promise<void>},
 ): Promise<SummaryResult[]> {
-  const results=stories.map(({items,heldBack})=>{
-    const fingerprint=summaryFingerprint(items,options.verificationIdentity);
-    const result: SummaryResult={fingerprint,status:'not_configured',attempts:[]};
-    if (heldBack) result.status='grouping_unvalidated';
+  const results = stories.map(({items, heldBack})=>{
+    const fingerprint = summaryFingerprint(items, options.verificationIdentity);
+    const result: SummaryResult = {fingerprint, status:'not_configured', attempts:[]};
+    if (heldBack) result.status = 'grouping_unvalidated';
     else if (options.enabled) {
-      if (!hasSourceText(items)) result.status='missing_text';
+      if (!hasSourceText(items)) result.status = 'missing_text';
       else {
-        result.synthesis=options.cache.get(fingerprint,items);
-        result.status=result.synthesis?'ready':'pending';
+        result.synthesis = options.cache.get(fingerprint, items);
+        result.status = result.synthesis ? 'ready' : 'pending';
       }
     }
     return result;
   });
-  let calls=0, unavailable=false;
-  for (let round=1; round<=3; round++) {
-    for (let i=0; i<stories.length; i++) {
-      const result=results[i];
-      if (result.status!=='pending') continue;
-      if (!options.llm || unavailable || calls+2>options.maxCalls) continue;
-      const attempt: SummaryResult['attempts'][number]={round};
+  let calls = 0, unavailable = false;
+  for (let round = 1; round <= 3; round++) {
+    for (let i = 0; i < stories.length; i++) {
+      const result = results[i];
+      if (result.status !== 'pending') continue;
+      if (!options.llm || unavailable || calls + 2 > options.maxCalls) continue;
+      const attempt: SummaryResult['attempts'][number] = {round};
       result.attempts.push(attempt);
       let accepted: StorySynthesis | undefined;
       try {
         calls++;
-        const draft=await synthesizeStory(stories[i].items,options.llm);
-        attempt.draft=draft;
+        const draft = await synthesizeStory(stories[i].items, options.llm);
+        attempt.draft = draft;
         calls++;
-        const candidates=[{id:'summary',summary:draft}];
-        const verdicts=options.verify?await options.verify(stories[i].items,candidates):await verifyCandidates(stories[i].items,candidates,options.llm);
-        attempt.verdicts=verdicts;
+        const candidates = [{id:'summary', summary:draft}];
+        const verdicts = options.verify ? await options.verify(stories[i].items, candidates) : await verifyCandidates(stories[i].items, candidates, options.llm);
+        attempt.verdicts = verdicts;
         if (!verdicts[0]?.supported) throw new Error('Verification rejected summary');
-        accepted=draft;
+        accepted = draft;
       } catch(e) {
-        attempt.error=(e as Error).message.slice(0,250);
-        if (/HTTP (402|429|503|403)/.test((e as Error).message)) unavailable=true;
+        attempt.error = (e as Error).message.slice(0, 250);
+        if (/HTTP (402|429|503|403)/.test((e as Error).message)) unavailable = true;
       }
       if (accepted) {
-        options.cache.save(result.fingerprint,accepted);
-        result.synthesis=accepted;
-        result.status='ready';
+        options.cache.save(result.fingerprint, accepted);
+        result.synthesis = accepted;
+        result.status = 'ready';
       }
       await (options.pause ?? (()=>sleep(2000)))();
     }
   }
   for (const result of results) {
-    if (result.status==='pending') result.status=result.attempts.length===3?'exhausted':'unavailable';
+    if (result.status === 'pending') result.status = result.attempts.length === 3 ? 'exhausted' : 'unavailable';
   }
   return results;
 }

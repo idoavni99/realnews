@@ -13,13 +13,13 @@ const id = (n: number, source = 'ynet') => articleId(`https://${source}.example/
 /** Mock model: rules is a function of the request input; records every request. */
 function mock(decide: (input: any, call: number) => unknown | Error) {
   const calls: LlmRequest[] = [];
-  const client: LlmClient = { async generateJson(req) { calls.push(JSON.parse(JSON.stringify(req))); const r = decide(req.input, calls.length); if (r instanceof Error) throw r; const keys=new Map<string,string>();
-    if ((r as any)?.assignments) (r as any).assignments=(r as any).assignments.map((a:any)=>{
-      if('target' in a || !('story_id' in a || 'new_key' in a)) return a;
-      if(a.story_id&&a.new_key)return a;
-      if(a.story_id)return {article_id:a.article_id,target:a.story_id};
-      if(!keys.has(a.new_key))keys.set(a.new_key,'new:'+(keys.size+1));
-      return {article_id:a.article_id,target:keys.get(a.new_key)};
+  const client: LlmClient = { async generateJson(req) { calls.push(JSON.parse(JSON.stringify(req))); const r = decide(req.input, calls.length); if (r instanceof Error) throw r; const keys = new Map<string, string>();
+    if ((r as any)?.assignments) (r as any).assignments = (r as any).assignments.map((a:any)=>{
+      if ('target' in a || !('story_id' in a || 'new_key' in a)) return a;
+      if (a.story_id && a.new_key) return a;
+      if (a.story_id) return {article_id:a.article_id, target:a.story_id};
+      if (!keys.has(a.new_key))keys.set(a.new_key, 'new:' + (keys.size + 1));
+      return {article_id:a.article_id, target:keys.get(a.new_key)};
     });
     return { json: r, usage: { promptTokenCount: 1 } }; } };
   return { client, calls };
@@ -78,15 +78,15 @@ test('invalid answer fails closed: batch articles stay separate, run continues',
   assert.match(r.batches[0].error!, /unknown article id/);
 });
 
-test('missing, duplicate, ambiguous and invented assignment IDs are rejected',()=>{
- const sent=['a_1','a_2'],known=new Set(['s1']);
- assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'new:1'}]},sent,known),/not every article/);
- assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'new:1'},{article_id:'a_1',target:'new:1'}]},sent,known),/duplicate/);
- assert.throws(()=>validateAssignments({assignments:[{target:'new:1'}]},sent,known),/unknown article/);
- assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'s9'}]},sent,known),/unknown target/);
- assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'new:3'}]},sent,known),/unknown target/);
- assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1',target:'s1',new_key:'x'}]},sent,known),/unexpected/);
- assert.equal(validateAssignments({assignments:[{article_id:'a_1',target:'s1'},{article_id:'a_2',target:'new:1'}]},sent,known).size,2);
+test('missing, duplicate, ambiguous and invented assignment IDs are rejected', ()=>{
+  const sent = ['a_1', 'a_2'], known = new Set(['s1']);
+  assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1', target:'new:1'}]}, sent, known), /not every article/);
+  assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1', target:'new:1'}, {article_id:'a_1', target:'new:1'}]}, sent, known), /duplicate/);
+  assert.throws(()=>validateAssignments({assignments:[{target:'new:1'}]}, sent, known), /unknown article/);
+  assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1', target:'s9'}]}, sent, known), /unknown target/);
+  assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1', target:'new:3'}]}, sent, known), /unknown target/);
+  assert.throws(()=>validateAssignments({assignments:[{article_id:'a_1', target:'s1', new_key:'x'}]}, sent, known), /unexpected/);
+  assert.equal(validateAssignments({assignments:[{article_id:'a_1', target:'s1'}, {article_id:'a_2', target:'new:1'}]}, sent, known).size, 2);
 });
 
 test('HTTP 503 stops further calls and leaves remaining articles ungrouped', async () => {
@@ -214,7 +214,7 @@ test('schema-valid assignment is not semantic event validation: captured false m
   assert.ok(fixture.cases.length >= 3);
   for (const c of fixture.cases) {
     assert.equal(c.expected_same_event, false);
-    const items = c.articles.map((a: any, i: number) => ({ ...a, sourceName: a.source, side: 'center', published: new Date(Date.UTC(2026,10,4,0,i)).toISOString() }));
+    const items = c.articles.map((a: any, i: number) => ({ ...a, sourceName: a.source, side: 'center', published: new Date(Date.UTC(2026, 10, 4, 0, i)).toISOString() }));
     const m = mock(input => ({ assignments: input.new_articles.map((a: any) => ({ article_id: a.id, new_key: 'wrong-event' })) }));
     const r = await groupArticles(items, m.client);
     // Deliberately demonstrates the limit: valid IDs/schema alone cannot reject these false merges.
@@ -224,100 +224,99 @@ test('schema-valid assignment is not semantic event validation: captured false m
   }
 });
 
-test('article batch cap is independent of completion allowance',async()=>{
- const items=Array.from({length:10},(_,i)=>mk(i+1,`E${i}: title`));
- const m=mock(perfect);
- const r=await groupArticles(items,m.client,{batchTokens:6000,maxOutputTokens:2000,maxArticlesPerBatch:5,maxCalls:2});
- assert.equal(r.calls,2);assert.deepEqual(r.batches.map(b=>b.article_ids.length),[5,5]);
- assert.ok(m.calls.every(c=>c.maxOutputTokens===2000));
+test('article batch cap is independent of completion allowance', async()=>{
+  const items = Array.from({length:10}, (_, i)=>mk(i + 1, `E${i}: title`));
+  const m = mock(perfect);
+  const r = await groupArticles(items, m.client, {batchTokens:6000, maxOutputTokens:2000, maxArticlesPerBatch:5, maxCalls:2});
+  assert.equal(r.calls, 2);assert.deepEqual(r.batches.map(b=>b.article_ids.length), [5, 5]);
+  assert.ok(m.calls.every(c=>c.maxOutputTokens === 2000));
 });
 
-test('each call constrains story IDs to its checkpoint and retains invalid IDs for diagnostics',async()=>{
- const items=Array.from({length:4},(_,i)=>mk(i+1,`E${i}: title`));
- const m=mock((input,c)=>c===1?perfect(input):{assignments:input.new_articles.map((a:any)=>({article_id:a.id,story_id:'fabricated-story'}))});
- const r=await groupArticles(items,m.client,{maxArticlesPerBatch:2,maxCalls:2});
- for(let i=0;i<m.calls.length;i++){
-  const input:any=m.calls[i].input;const schema:any=m.calls[i].schema;
-  assert.deepEqual(schema.properties.assignments.items.properties.target.enum,[...input.checkpoint.stories.map((s:any)=>s.id),...input.new_articles.map((_:any,j:number)=>'new:'+(j+1))]);
- }
- assert.equal(r.batches[1].status,'rejected');
- assert.match(r.batches[1].error!,/fabricated-story/);
- assert.equal((r.batches[1].assignment_output as any)[0].target,'fabricated-story');
- assert.ok(r.groups.filter(g=>g.items.some(a=>[items[2].url,items[3].url].includes(a.url))).every(g=>g.grouping==='unvalidated'));
+test('each call constrains story IDs to its checkpoint and retains invalid IDs for diagnostics', async()=>{
+  const items = Array.from({length:4}, (_, i)=>mk(i + 1, `E${i}: title`));
+  const m = mock((input, c)=>c === 1 ? perfect(input) : {assignments:input.new_articles.map((a:any)=>({article_id:a.id, story_id:'fabricated-story'}))});
+  const r = await groupArticles(items, m.client, {maxArticlesPerBatch:2, maxCalls:2});
+  for (let i = 0;i < m.calls.length;i++) {
+    const input:any = m.calls[i].input;const schema:any = m.calls[i].schema;
+    assert.deepEqual(schema.properties.assignments.items.properties.target.enum, [...input.checkpoint.stories.map((s:any)=>s.id), ...input.new_articles.map((_:any, j:number)=>'new:' + (j + 1))]);
+  }
+  assert.equal(r.batches[1].status, 'rejected');
+  assert.match(r.batches[1].error!, /fabricated-story/);
+  assert.equal((r.batches[1].assignment_output as any)[0].target, 'fabricated-story');
+  assert.ok(r.groups.filter(g=>g.items.some(a=>[items[2].url, items[3].url].includes(a.url))).every(g=>g.grouping === 'unvalidated'));
 });
 
-test('source round-robin fills batches across outlets, preserving cursor and outlet chronology',async()=>{
- const items=[mk(1,'a1','alpha'),mk(2,'a2','alpha'),mk(3,'a3','alpha'),mk(4,'b1','beta'),mk(5,'b2','beta'),mk(6,'c1','gamma'),mk(7,'c2','gamma')];
- const m=mock(perfect);const r=await groupArticles(items,m.client,{maxArticlesPerBatch:2,maxCalls:4});
- const actual=r.batches.map(b=>b.article_ids.map(id=>items.find(x=>articleId(x.url)===id)!.source));
- assert.deepEqual(actual,[['alpha','beta'],['gamma','alpha'],['beta','gamma'],['alpha']]);
- const sent=r.batches.flatMap(b=>b.article_ids);assert.equal(new Set(sent).size,items.length);
- assert.deepEqual(sent.filter(id=>items.find(x=>articleId(x.url)===id)!.source==='alpha'),[1,2,3].map(n=>articleId(`https://alpha.example/a${n}`)));
+test('source round-robin fills batches across outlets, preserving cursor and outlet chronology', async()=>{
+  const items = [mk(1, 'a1', 'alpha'), mk(2, 'a2', 'alpha'), mk(3, 'a3', 'alpha'), mk(4, 'b1', 'beta'), mk(5, 'b2', 'beta'), mk(6, 'c1', 'gamma'), mk(7, 'c2', 'gamma')];
+  const m = mock(perfect);const r = await groupArticles(items, m.client, {maxArticlesPerBatch:2, maxCalls:4});
+  const actual = r.batches.map(b=>b.article_ids.map(id=>items.find(x=>articleId(x.url) === id)!.source));
+  assert.deepEqual(actual, [['alpha', 'beta'], ['gamma', 'alpha'], ['beta', 'gamma'], ['alpha']]);
+  const sent = r.batches.flatMap(b=>b.article_ids);assert.equal(new Set(sent).size, items.length);
+  assert.deepEqual(sent.filter(id=>items.find(x=>articleId(x.url) === id)!.source === 'alpha'), [1, 2, 3].map(n=>articleId(`https://alpha.example/a${n}`)));
 });
 
-test('every fitting full-source round contains one article from each active outlet',async()=>{
- const items=['alpha','beta','gamma'].flatMap((s,i)=>[mk(i*2+1,s+':one',s),mk(i*2+2,s+':two',s)]);
- const r=await groupArticles(items,mock(perfect).client,{maxArticlesPerBatch:3,maxCalls:2});
- assert.equal(r.batches.length,2);
- for(const b of r.batches)assert.equal(new Set(b.article_ids.map(id=>items.find(x=>articleId(x.url)===id)!.source)).size,3);
+test('every fitting full-source round contains one article from each active outlet', async()=>{
+  const items = ['alpha', 'beta', 'gamma'].flatMap((s, i)=>[mk(i * 2 + 1, s + ':one', s), mk(i * 2 + 2, s + ':two', s)]);
+  const r = await groupArticles(items, mock(perfect).client, {maxArticlesPerBatch:3, maxCalls:2});
+  assert.equal(r.batches.length, 2);
+  for (const b of r.batches)assert.equal(new Set(b.article_ids.map(id=>items.find(x=>articleId(x.url) === id)!.source)).size, 3);
 });
 
-test('flat schema requires article ID and one target, with no branching',()=>{
- const item=groupingSchema(['s1'],['a','b']).properties.assignments.items;
- assert.deepEqual(item.required,['article_id','target']);assert.equal(item.oneOf,undefined);
- assert.deepEqual(item.properties.article_id.enum,['a','b']);assert.deepEqual(item.properties.target.enum,['s1','new:1','new:2']);
- assert.throws(()=>validateAssignments({assignments:[{article_id:'a',story_id:'s1',new_key:'x'}]},['a'],new Set(['s1'])),/unexpected/);
+test('flat schema requires article ID and one target, with no branching', ()=>{
+  const item = groupingSchema(['s1'], ['a', 'b']).properties.assignments.items;
+  assert.deepEqual(item.required, ['article_id', 'target']);assert.equal(item.oneOf, undefined);
+  assert.deepEqual(item.properties.article_id.enum, ['a', 'b']);assert.deepEqual(item.properties.target.enum, ['s1', 'new:1', 'new:2']);
+  assert.throws(()=>validateAssignments({assignments:[{article_id:'a', story_id:'s1', new_key:'x'}]}, ['a'], new Set(['s1'])), /unexpected/);
 });
 
-test('active source heads are time-ordered each round without a hard time cutoff',async()=>{
- const {sourceRoundRobin}=await import('../src/grouping.ts');
- const a=mk(1,'a early','alpha'),a2=mk(9,'a late','alpha'),b=mk(2,'b early','beta'),b2=mk(3,'b next','beta');
- const rows=sourceRoundRobin([a2,b2,b,a]);
- assert.deepEqual(rows.map(x=>x.title),['a early','b early','b next','a late']);
- assert.equal(rows.length,4,'late article retained regardless of time gap');
+test('active source heads are time-ordered each round without a hard time cutoff', async()=>{
+  const {sourceRoundRobin} = await import('../src/grouping.ts');
+  const a = mk(1, 'a early', 'alpha'), a2 = mk(9, 'a late', 'alpha'), b = mk(2, 'b early', 'beta'), b2 = mk(3, 'b next', 'beta');
+  const rows = sourceRoundRobin([a2, b2, b, a]);
+  assert.deepEqual(rows.map(x=>x.title), ['a early', 'b early', 'b next', 'a late']);
+  assert.equal(rows.length, 4, 'late article retained regardless of time gap');
 });
 
-test('invalid numeric bounds fail before any model call',async()=>{
- const m=mock(perfect);
- for(const cfg of [{maxArticlesPerBatch:0},{maxArticlesPerBatch:NaN},{batchTokens:NaN},{maxCalls:Infinity},{leadChars:-1},{delayMs:-1},{checkpointShare:1},{maxOutputTokens:0}])
-   await assert.rejects(groupArticles([mk(1,'A')],m.client,cfg),/Invalid grouping config/);
- assert.equal(m.calls.length,0);
+test('invalid numeric bounds fail before any model call', async()=>{
+  const m = mock(perfect);
+  for (const cfg of [{maxArticlesPerBatch:0}, {maxArticlesPerBatch:NaN}, {batchTokens:NaN}, {maxCalls:Infinity}, {leadChars:-1}, {delayMs:-1}, {checkpointShare:1}, {maxOutputTokens:0}])
+    await assert.rejects(groupArticles([mk(1, 'A')], m.client, cfg), /Invalid grouping config/);
+  assert.equal(m.calls.length, 0);
 });
-test('actual candidate schema, payload and requested completion allowance determine budget',async()=>{
- const m=mock(perfect); const items=Array.from({length:150},(_,i)=>mk(i+1,'A: same'));
- const r=await groupArticles(items,m.client,{batchTokens:6000,maxArticlesPerBatch:1,maxCalls:1});
- assert.equal(m.calls.length,1,'remaining queue enum does not prevent first call');
- const req=m.calls[0];const batch=r.batches[0];
- assert.equal(batch.est_tokens,estTokens(req.system)+estTokens(JSON.stringify(req.schema))+estTokens(JSON.stringify(req.input))+req.maxOutputTokens);
- assert.equal((req.schema as any).properties.assignments.items.properties.article_id.enum.length,1);
- assert.equal(r.groups.flatMap(g=>g.articleIds).length,150,'all articles retained after call cap');
+test('actual candidate schema, payload and requested completion allowance determine budget', async()=>{
+  const m = mock(perfect); const items = Array.from({length:150}, (_, i)=>mk(i + 1, 'A: same'));
+  const r = await groupArticles(items, m.client, {batchTokens:6000, maxArticlesPerBatch:1, maxCalls:1});
+  assert.equal(m.calls.length, 1, 'remaining queue enum does not prevent first call');
+  const req = m.calls[0];const batch = r.batches[0];
+  assert.equal(batch.est_tokens, estTokens(req.system) + estTokens(JSON.stringify(req.schema)) + estTokens(JSON.stringify(req.input)) + req.maxOutputTokens);
+  assert.equal((req.schema as any).properties.assignments.items.properties.article_id.enum.length, 1);
+  assert.equal(r.groups.flatMap(g=>g.articleIds).length, 150, 'all articles retained after call cap');
 });
-test('checkpoint retains publication range and latest evidence through compaction',async()=>{
- const m=mock(perfect); const items=[mk(1,'A: first'),mk(2,'A: latest'),mk(3,'B: next')];
- await groupArticles(items,m.client,{batchTokens:10000,maxArticlesPerBatch:1});
- const ck=(m.calls[2].input as any).checkpoint.stories[0];
- assert.equal(ck.published_from,items[0].published);assert.equal(ck.published_to,items[1].published);assert.equal(ck.latest.title,'A: latest');
- assert.equal((m.calls[0].input as any).new_articles[0].published,items[0].published);
- const missing=mock(perfect);await groupArticles([{...mk(1,'A'),published:''}],missing.client);
- assert.equal((missing.calls[0].input as any).new_articles[0].published,null);
-});
-
-test('unknown publication times skip temporal ordering but retain continuous source round-robin',async()=>{
- const {sourceRoundRobin}=await import('../src/grouping.ts');
- const items=[mk(9,'late A','one'),{...mk(7,'unknown B','two'),published:''},mk(1,'early A','one'),mk(2,'early B','two')];
- assert.deepEqual(sourceRoundRobin(items).map(a=>a.title),['late A','unknown B','early A','early B']);
- const m=mock(perfect);const r=await groupArticles(items,m.client,{maxArticlesPerBatch:1,checkpointShare:.001,batchTokens:10000});
- assert.deepEqual(m.calls.flatMap(c=>(c.input as any).new_articles.map((a:any)=>a.title)),['late A','unknown B','early A','early B']);
- assert.ok(r.batches.some(b=>b.checkpoint_level>0),'compaction remains independent of missing dates');
+test('checkpoint retains publication range and latest evidence through compaction', async()=>{
+  const m = mock(perfect); const items = [mk(1, 'A: first'), mk(2, 'A: latest'), mk(3, 'B: next')];
+  await groupArticles(items, m.client, {batchTokens:10000, maxArticlesPerBatch:1});
+  const ck = (m.calls[2].input as any).checkpoint.stories[0];
+  assert.equal(ck.published_from, items[0].published);assert.equal(ck.published_to, items[1].published);assert.equal(ck.latest.title, 'A: latest');
+  assert.equal((m.calls[0].input as any).new_articles[0].published, items[0].published);
+  const missing = mock(perfect);await groupArticles([{...mk(1, 'A'), published:''}], missing.client);
+  assert.equal((missing.calls[0].input as any).new_articles[0].published, null);
 });
 
+test('unknown publication times skip temporal ordering but retain continuous source round-robin', async()=>{
+  const {sourceRoundRobin} = await import('../src/grouping.ts');
+  const items = [mk(9, 'late A', 'one'), {...mk(7, 'unknown B', 'two'), published:''}, mk(1, 'early A', 'one'), mk(2, 'early B', 'two')];
+  assert.deepEqual(sourceRoundRobin(items).map(a=>a.title), ['late A', 'unknown B', 'early A', 'early B']);
+  const m = mock(perfect);const r = await groupArticles(items, m.client, {maxArticlesPerBatch:1, checkpointShare:.001, batchTokens:10000});
+  assert.deepEqual(m.calls.flatMap(c=>(c.input as any).new_articles.map((a:any)=>a.title)), ['late A', 'unknown B', 'early A', 'early B']);
+  assert.ok(r.batches.some(b=>b.checkpoint_level > 0), 'compaction remains independent of missing dates');
+});
 
-test('110 distinct articles retain every checkpoint ID within bounded full-feed context',async()=>{
- const items=Array.from({length:110},(_,i)=>mk(i+1,`E${i}: `+'כותרת ארוכה '.repeat(12),'source'+i%10,'פתיח '.repeat(80)));
- const r=await groupArticles(items,mock(perfect).client,{batchTokens:24000,maxArticlesPerBatch:6,maxCalls:30,maxOutputTokens:4000});
- assert.equal(r.complete,true);assert.equal(r.groups.length,110);assert.ok(r.calls<=30);
- assert.ok(r.batches.every(b=>b.est_tokens<=24000&&b.article_ids.length<=6));
- let known=0;for(const b of r.batches){assert.equal(b.checkpoint_story_ids.length,known);known+=b.article_ids.length;}
+test('110 distinct articles retain every checkpoint ID within bounded full-feed context', async()=>{
+  const items = Array.from({length:110}, (_, i)=>mk(i + 1, `E${i}: ` + 'כותרת ארוכה '.repeat(12), 'source' + i % 10, 'פתיח '.repeat(80)));
+  const r = await groupArticles(items, mock(perfect).client, {batchTokens:24000, maxArticlesPerBatch:6, maxCalls:30, maxOutputTokens:4000});
+  assert.equal(r.complete, true);assert.equal(r.groups.length, 110);assert.ok(r.calls <= 30);
+  assert.ok(r.batches.every(b=>b.est_tokens <= 24000 && b.article_ids.length <= 6));
+  let known = 0;for (const b of r.batches) {assert.equal(b.checkpoint_story_ids.length, known);known += b.article_ids.length;}
 });
 
 import { LlmOutputError } from '../src/llm.ts';

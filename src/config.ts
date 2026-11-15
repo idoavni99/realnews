@@ -60,7 +60,6 @@ export function loadConfig(root: string): Config {
       cur = { id: line.split(':', 2)[1].trim() };
       sources.push(cur as unknown as Source);
     } else if (cur && line.startsWith('    ') && line.includes(':')) {
-      const i = line.indexOf(':');
       cur[line.trim().slice(0, line.trim().indexOf(':')).trim()] = line.trim().slice(line.trim().indexOf(':') + 1).trim();
     } else if (line.includes(':') && !line.startsWith(' ') && !line.startsWith('#')) {
       const i = line.indexOf(':');

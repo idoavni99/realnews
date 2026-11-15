@@ -45,7 +45,6 @@ export function parseFeed(xml: string, source: Source): FeedItem[] {
   return items;
 }
 
-
 /** i24's public updates contain repeated links; use each article's own metadata once. */
 export function parseI24News(json: string, source: Source): FeedItem[] {
   const rows = JSON.parse(json);
@@ -65,6 +64,6 @@ export function parseI24News(json: string, source: Source): FeedItem[] {
 }
 
 export function withinArticleWindow(item: FeedItem, now: number, hours: number): boolean {
-  const age=now-Date.parse(item.published);
-  return Number.isFinite(age) && age>=-300000 && age<=hours*3600000;
+  const age = now - Date.parse(item.published);
+  return Number.isFinite(age) && age >= -300000 && age <= hours * 3600000;
 }

@@ -53,7 +53,7 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
           provider: { require_parameters: true },
           temperature: req.temperature,
           max_tokens: req.maxOutputTokens,
-          ...(['Grouping','Reconciliation'].includes(req.label)?{reasoning:{effort:'low'}}:{}),
+          ...(['Grouping', 'Reconciliation'].includes(req.label) ? {reasoning:{effort:'low'}} : {}),
           messages: [
             { role: 'system', content: req.system },
             { role: 'user', content: JSON.stringify(req.input) },
@@ -65,7 +65,7 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
         }),
         signal: AbortSignal.timeout(90000),
       });
-      if (!r.ok) throw new LlmOutputError(`${req.label} HTTP ${r.status}`, {requested_model:model,content_chars:0,http_status:r.status,retry_after:r.headers.get('retry-after')?.slice(0,120)});
+      if (!r.ok) throw new LlmOutputError(`${req.label} HTTP ${r.status}`, {requested_model:model, content_chars:0, http_status:r.status, retry_after:r.headers.get('retry-after')?.slice(0, 120)});
       const d = await r.json();
       const c = d.choices?.[0];
       const text = c?.message?.content;

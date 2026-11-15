@@ -60,6 +60,11 @@ This migration does not enable model stages or change their existing budgets.
 ## תיוג מקורות (רק הבעלים)
 
 ערוך את `sources.yaml` ישירות ב-GitHub (פתח את הקובץ > סמל העיפרון > Commit changes).
+
+## Development
+
+The runtime stays dependency-free. Linting uses dev-only ESLint
+(`npm install`, then `npm run lint`; config in `eslint.config.mjs`).
 לכל מקור שנה את `side` לאחד מ: `right` / `center` / `left` / `unknown`.
 כל ערך אחר מטופל כ-`unknown` אוטומטית. מקור `unknown` לא נכנס לחישוב סרגל הכיסוי.
 אין תיוג אוטומטי - התווית נכנסת רק אחרי שאתה כותב אותה.
