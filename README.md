@@ -60,6 +60,15 @@ This migration does not enable model stages or change their existing budgets.
 ## תיוג מקורות (רק הבעלים)
 
 ערוך את `sources.yaml` ישירות ב-GitHub (פתח את הקובץ > סמל העיפרון > Commit changes).
+
+## Development
+
+The runtime stays dependency-free. Linting uses dev-only ESLint
+(`npm install`, then `npm run lint`; config in `eslint.config.mjs`) and
+Prettier for formatting (`npm run format`, check with `npm run format:check`;
+config in `.prettierrc.json`). ESLint owns code quality, Prettier owns layout.
+`npm install` also sets `core.hooksPath` to `.githooks`, whose `pre-push` hook
+runs lint and the format check before every push (bypass: `git push --no-verify`).
 לכל מקור שנה את `side` לאחד מ: `right` / `center` / `left` / `unknown`.
 כל ערך אחר מטופל כ-`unknown` אוטומטית. מקור `unknown` לא נכנס לחישוב סרגל הכיסוי.
 אין תיוג אוטומטי - התווית נכנסת רק אחרי שאתה כותב אותה.

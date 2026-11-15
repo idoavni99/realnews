@@ -1,0 +1,8 @@
+#!/bin/sh
+# Runs before every `git push`. Blocks the push if lint or formatting fails.
+# Checks only (never rewrites files); to fix formatting run: npm run format
+set -e
+echo "pre-push: eslint..."
+npm run --silent lint
+echo "pre-push: prettier..."
+npm run --silent format:check || { echo "Formatting check failed. Run 'npm run format' and commit." >&2; exit 1; }
