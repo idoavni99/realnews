@@ -14,6 +14,10 @@ on:
         description: Enable bounded synthesis and verification (independent of grouping)
         type: boolean
         default: false
+      slot_guard:
+        description: Skip when the current 09:00/21:00 Israel slot already has an edition (used by the external clock)
+        type: boolean
+        default: false
       free_test:
         description: Use openrouter/free for this staged test only (does not change provider default)
         type: boolean
@@ -27,7 +31,27 @@ permissions:
   contents: write
 
 jobs:
+  # GitHub's scheduler can fire hours late, so an external clock also dispatches
+  # this workflow. Scheduled and slot_guard runs stop here, before any model
+  # call, when an edition for the current slot is already published.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.guard.outputs.run || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Slot guard
+        id: guard
+        if: github.event_name == 'schedule' || inputs.slot_guard
+        run: node scripts/slot-guard.ts
+
   build:
+    needs: check
+    if: needs.check.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

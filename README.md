@@ -11,6 +11,10 @@ political map. Static site with a scheduled TypeScript news pipeline.
    stories, and writes `site/data.json`.
 2. `.github/workflows/daily.yml` runs it at 09:00 and 21:00 Israel time on GitHub Actions and
    commits the refreshed `data.json`.
+   GitHub's scheduler can start runs hours late (or skip them), so an external clock also
+   dispatches the workflow at 09:00 and 21:00 with `slot_guard=true`. A scheduled or guarded run
+   exits before any model call when `site/data.json` was already generated at or after the
+   current slot's start (`scripts/slot-guard.ts`); manual runs always run.
 3. `site/index.html` is a static RTL page that renders the feed: headline,
    short summary, and a right/left coverage bar per story. Up to 3 previous
    runs are archived under `site/history/` and can be viewed from the edition
