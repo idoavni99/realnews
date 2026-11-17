@@ -37,11 +37,15 @@ export function decisionVerifier(client: DecisionClient, threshold: number) {
       throw new Error('Invalid verification candidates');
     for (const candidate of candidates) validateSynthesis(candidate.summary, items);
     const questions: Record<string, DecisionQuestion> = {};
-    candidates.forEach((_, index) => {
+    candidates.forEach((candidate, index) => {
+      const citationNote =
+        candidate.citation_kind === 'claim_level'
+          ? ` In candidates[${index}], article_ids are model-selected claim citations limited to the named side; verify each claim against the cited articles.`
+          : '';
       for (const [check, instructions] of Object.entries(CHECKS))
         questions[`c${index}_${check}`] = {
           type: 'noul',
-          instructions: `${DATA_BOUNDARY} Inspect candidates[${index}]. ${instructions}`,
+          instructions: `${DATA_BOUNDARY} Inspect candidates[${index}]. ${instructions}${citationNote}`,
         };
     });
     const response = await client.decide({
