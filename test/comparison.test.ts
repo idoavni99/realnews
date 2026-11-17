@@ -156,6 +156,15 @@ test('synthesizeStory: extended contract only for qualifying stories, invalid di
 
   const qualifying = await synthesizeStory(bothSides, llm);
   assert.ok(JSON.stringify(requests[1].schema).includes('differences'));
+  assert.ok(!requests[1].system.includes('overall event summary or comparison'));
+  assert.ok(
+    !requests[1].system.includes(
+      'Do not output article IDs, citations, source lists or extra fields',
+    ),
+  );
+  assert.ok(requests[1].system.includes('Return only sides and differences'));
+  assert.ok(requests[1].system.includes('In sides, return only prose strings'));
+  assert.ok(requests[1].system.includes('Cite the input article IDs'));
   assert.ok(qualifying.synthesis.sides.left.summary.length > 0);
   assert.equal(qualifying.comparison, undefined);
   assert.match(qualifying.comparison_error || '', /citation/i);
