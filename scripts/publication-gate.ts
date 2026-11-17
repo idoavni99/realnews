@@ -140,5 +140,10 @@ if (process.argv[1]?.endsWith('/publication-gate.ts')) {
   const path = 'site/data.json';
   const data = JSON.parse(readFileSync(path, 'utf8'));
   const publishable = publicationGate(data, true);
+  const before = data.stories.filter((story: any) => !!story.comparison).length;
+  const after = publishable.stories.filter((story: any) => !!story.comparison).length;
+  console.error(
+    `comparison publication gate: ${JSON.stringify({ before, after, stripped: before - after })}`,
+  );
   writeFileSync(path, JSON.stringify(publishable, null, 1));
 }
