@@ -82,6 +82,19 @@ footer.health .ok { color: #4a7d5d; } footer.health .bad { color: #b04a4a; }
 .grp.right { background: var(--right-tint); color: var(--right-ink); border-color: var(--right); }
 .grp.center { background: var(--center-tint); color: var(--center-ink); border-color: var(--center); }
 .grp.unlabeled { background: transparent; color: var(--ink2); border-color: var(--hairline); font-weight:400; }
+/* Coverage-difference bullets: one compact card at the top of the story screen. */
+.diff { background: var(--card); border-radius: 12px; padding: 10px 16px 12px; margin-top: 4px; border-top: 4px solid transparent; border-image: linear-gradient(to left, var(--right) 50%, var(--left) 50%) 1; }
+.diff ul { list-style: none; }
+.diff li { font-size: 14px; line-height: 1.6; padding-inline-start: 14px; position: relative; margin-top: 6px; }
+.diff li::before { content: ""; position: absolute; inset-inline-start: 0; top: 9px; width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(to left, var(--right) 50%, var(--left) 50%); }
+.diff li b.r { color: var(--right-ink); }
+.diff li b.l { color: var(--left-ink); }
+.diff .srcs { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.diff .srcs a { text-decoration: none; }
+.diff .srcs.right a { color: var(--right-ink); }
+.diff .srcs.left a { color: var(--left-ink); }
+.diff .none { font-size: 14px; color: var(--ink2); }
+.diff .note { margin-top: 8px; }
 .chip.sub { font-weight: 400; }
 .cov-cap{font-size:12px;color:var(--ink2);margin-bottom:4px}
 .feed-tools{display:grid;gap:10px;margin-top:14px}.feed-tools label{display:block;font-size:12px;color:var(--ink2);margin-bottom:4px}.feed-tools input,.feed-tools select{font:inherit;font-size:16px;min-height:44px;width:100%;min-width:0;border:1px solid #cfc8ca;border-radius:10px;background:var(--card);color:var(--ink);padding:9px 12px}.tool-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}.reset{min-height:44px;padding:8px 14px;border:1px solid #cfc8ca;border-radius:10px;background:white;color:var(--ink);font:inherit;cursor:pointer}.banner button{font:inherit;font-size:13px;min-height:32px;padding:4px 12px;margin-inline-start:8px;border:1px solid #cfc8ca;border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer}.results{font-size:13px;color:var(--ink2);margin-top:10px}.empty{padding:30px 12px;text-align:center;color:var(--ink2)}
@@ -224,6 +237,25 @@ function sideSummariesHtml(s) {
   }).join('') + (s.caveats||[]).map(c=>`<p class="note">${esc(c)}</p>`).join('');
 }
 
+/* Difference bullets are written only for stories covered by both side groups; the pipeline owns qualification. */
+function comparisonHtml(s) {
+  if (!s.comparison) return '';
+  const srcs = (ids, cls) => `<span class="srcs ${cls}">(${ids.map(id => s.articles[id]).filter(Boolean).map(a => `<a href="${a.url}" target="_blank" rel="noopener">${esc(a.source)}</a>`).join(' · ')})</span>`;
+  let body;
+  if (s.comparison.status !== 'ready' || !s.comparison.bullets.length) {
+    body = `<p class="none">לא נמצאו הבדלים ברורים בין סיקור הימין לסיקור השמאל בטקסט שנאסף.</p>`;
+  } else {
+    body = '<ul>' + s.comparison.bullets.map(b => {
+      if (b.right && b.left)
+        return `<li><b class="r">ימין</b>: ${esc(b.right.text)} <b class="l">שמאל</b>: ${esc(b.left.text)} ${srcs(b.right.article_ids, 'right')} ${srcs(b.left.article_ids, 'left')}</li>`;
+      if (b.right)
+        return `<li>${esc(b.right.text)} - הוזכר רק ב<b class="r">ימין</b> ${srcs(b.right.article_ids, 'right')}</li>`;
+      return `<li>${esc(b.left.text)} - הוזכר רק ב<b class="l">שמאל</b> ${srcs(b.left.article_ids, 'left')}</li>`;
+    }).join('') + '</ul>';
+  }
+  return `<h3 class="sec">מה שונה בסיקור</h3><div class="diff">${body}<p class="note">על בסיס הטקסט שנאסף בלבד. פרט שלא הוזכר אצל צד לא בהכרח לא פורסם בו.</p></div>`;
+}
+
 function renderDetail(i) {
   const s = DATA.stories[i];
   if (!s) return closeDetail();
@@ -233,6 +265,7 @@ function renderDetail(i) {
     <h2>${esc(s.headline)}</h2>
       ${groupingWarning(s)}
     ${coverageHtml(s)}
+    ${comparisonHtml(s)}
     ${sideSummariesHtml(s)}
     <h3 class="sec">מקורות לעיון (לא חובה)</h3>
     ${Object.entries(bySide).map(([side, arts]) => arts.map(a => `
