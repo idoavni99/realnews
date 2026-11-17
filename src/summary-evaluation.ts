@@ -37,7 +37,7 @@ export async function evaluateSummary(items: FeedItem[], provider: LlmClient) {
   let status = 'error';
   let error: string | undefined;
   try {
-    draft = await synthesizeStory(items, llm);
+    draft = (await synthesizeStory(items, llm)).synthesis;
     phase = 'verification';
     const result = await verifyCandidates(items, [{ id: 'summary', summary: draft }], llm);
     verdicts = result;

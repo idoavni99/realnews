@@ -6,9 +6,14 @@ import type { FeedItem } from './rss.ts';
 import type { LlmClient } from './llm.ts';
 import { sleep } from './http.ts';
 import {
+  comparisonCandidate,
+  comparisonToRaw,
+  qualifiesForComparison,
   synthesizeStory,
   synthesisInput,
+  validateComparison,
   validateSynthesis,
+  type StoryComparison,
   type StorySynthesis,
 } from './synthesis.ts';
 import { verifyCandidates, type VerificationCandidate, type Verdict } from './verification.ts';
@@ -16,8 +21,16 @@ import { verifyCandidates, type VerificationCandidate, type Verdict } from './ve
 export interface SummaryResult {
   fingerprint: string;
   status: string;
-  attempts: { round: number; draft?: StorySynthesis; verdicts?: unknown; error?: string }[];
+  attempts: {
+    round: number;
+    draft?: unknown;
+    verdicts?: unknown;
+    error?: string;
+    comparison_error?: string;
+    comparison_rejected?: boolean;
+  }[];
   synthesis?: StorySynthesis;
+  comparison?: StoryComparison;
 }
 
 export function orderedEvidence(items: FeedItem[]): FeedItem[] {
@@ -28,8 +41,9 @@ export function summaryFingerprint(items: FeedItem[], verificationIdentity?: str
   return createHash('sha256')
     .update(
       JSON.stringify({
-        version: 10,
+        version: 11,
         ...(verificationIdentity ? { verificationIdentity } : {}),
+        comparison: qualifiesForComparison(items),
         urls: items.map((a) => canonicalUrl(a.url)),
         evidence: synthesisInput(items),
       }),
@@ -42,7 +56,7 @@ export function hasSourceText(items: FeedItem[]): boolean {
 }
 
 export function summaryCache(path: string) {
-  let entries: Record<string, StorySynthesis> = {};
+  let entries: Record<string, { synthesis: StorySynthesis; comparison?: StoryComparison }> = {};
   if (existsSync(path)) {
     try {
       const value = JSON.parse(readFileSync(path, 'utf8'));
@@ -52,14 +66,28 @@ export function summaryCache(path: string) {
     }
   }
   return {
-    get(key: string, items: FeedItem[]) {
+    get(
+      key: string,
+      items: FeedItem[],
+    ): { synthesis: StorySynthesis; comparison?: StoryComparison } | undefined {
       try {
-        return entries[key] ? validateSynthesis(entries[key], items) : undefined;
+        const entry = entries[key];
+        if (!entry) return undefined;
+        const synthesis = validateSynthesis(entry.synthesis, items);
+        let comparison: StoryComparison | undefined;
+        if (entry.comparison) {
+          try {
+            comparison = validateComparison(comparisonToRaw(entry.comparison), items);
+          } catch {
+            comparison = undefined;
+          }
+        }
+        return { synthesis, comparison };
       } catch {
         return undefined;
       }
     },
-    save(key: string, value: StorySynthesis) {
+    save(key: string, value: { synthesis: StorySynthesis; comparison?: StoryComparison }) {
       entries[key] = value;
       mkdirSync(dirname(path), { recursive: true });
       const temporary = path + '.tmp';
@@ -88,7 +116,9 @@ export async function summarizeStories(
     else if (options.enabled) {
       if (!hasSourceText(items)) result.status = 'missing_text';
       else {
-        result.synthesis = options.cache.get(fingerprint, items);
+        const cached = options.cache.get(fingerprint, items);
+        result.synthesis = cached?.synthesis;
+        result.comparison = cached?.comparison;
         result.status = result.synthesis ? 'ready' : 'pending';
       }
     }
@@ -104,25 +134,43 @@ export async function summarizeStories(
       const attempt: SummaryResult['attempts'][number] = { round };
       result.attempts.push(attempt);
       let accepted: StorySynthesis | undefined;
+      let acceptedComparison: StoryComparison | undefined;
       try {
         calls++;
         const draft = await synthesizeStory(stories[i].items, options.llm);
         attempt.draft = draft;
+        if (draft.comparison_error) attempt.comparison_error = draft.comparison_error;
         calls++;
-        const candidates = [{ id: 'summary', summary: draft }];
+        const candidates: VerificationCandidate[] = [{ id: 'summary', summary: draft.synthesis }];
+        const asCandidate = draft.comparison ? comparisonCandidate(draft.comparison) : undefined;
+        if (asCandidate)
+          candidates.push({ id: 'comparison', summary: asCandidate, citation_kind: 'claim_level' });
         const verdicts = options.verify
           ? await options.verify(stories[i].items, candidates)
           : await verifyCandidates(stories[i].items, candidates, options.llm);
         attempt.verdicts = verdicts;
-        if (!verdicts[0]?.supported) throw new Error('Verification rejected summary');
-        accepted = draft;
+        if (!verdicts.find((v) => v.id === 'summary')?.supported)
+          throw new Error('Verification rejected summary');
+        accepted = draft.synthesis;
+        if (draft.comparison) {
+          if (asCandidate && !verdicts.find((v) => v.id === 'comparison')?.supported) {
+            // A rejected comparison never takes down a verified summary; bullets are simply dropped.
+            attempt.comparison_rejected = true;
+          } else {
+            acceptedComparison = draft.comparison;
+          }
+        }
       } catch (e) {
         attempt.error = (e as Error).message.slice(0, 250);
         if (/HTTP (402|429|503|403)/.test((e as Error).message)) unavailable = true;
       }
       if (accepted) {
-        options.cache.save(result.fingerprint, accepted);
+        options.cache.save(result.fingerprint, {
+          synthesis: accepted,
+          comparison: acceptedComparison,
+        });
         result.synthesis = accepted;
+        result.comparison = acceptedComparison;
         result.status = 'ready';
       }
       await (options.pause ?? (() => sleep(2000)))();
