@@ -243,7 +243,7 @@ function comparisonHtml(s) {
   const srcs = (ids, cls) => `<span class="srcs ${cls}">(${ids.map(id => s.articles[id]).filter(Boolean).map(a => `<a href="${a.url}" target="_blank" rel="noopener">${esc(a.source)}</a>`).join(' · ')})</span>`;
   let body;
   if (s.comparison.status !== 'ready' || !s.comparison.bullets.length) {
-    body = `<p class="none">לא נמצאו הבדלים ברורים בין סיקור הימין לסיקור השמאל בטקסט שנאסף.</p>`;
+    body = `<p class="none">לא נמצאו הבדלים ברורים בסיקור בין שני הצדדים.</p>`;
   } else {
     body = '<ul>' + s.comparison.bullets.map(b => {
       if (b.right && b.left)
