@@ -44,6 +44,42 @@ function validSummary(story: any): boolean {
   return true;
 }
 
+function validComparison(story: any): boolean {
+  const c = story.comparison;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return false;
+  if (c.status !== 'ready' && c.status !== 'no_difference') return false;
+  if (!Array.isArray(c.bullets) || c.bullets.length > 3) return false;
+  if ((c.status === 'ready') !== c.bullets.length > 0) return false;
+  for (const b of c.bullets) {
+    if (!b || typeof b !== 'object' || Object.keys(b).some((k) => !['right', 'left'].includes(k)))
+      return false;
+    let any = false;
+    for (const side of ['right', 'left']) {
+      const s = b[side];
+      if (s === undefined) continue;
+      any = true;
+      if (
+        !s ||
+        typeof s.text !== 'string' ||
+        !s.text.trim() ||
+        s.text.length > 250 ||
+        !Array.isArray(s.article_ids) ||
+        !s.article_ids.length ||
+        s.article_ids.length > 4 ||
+        s.article_ids.some(
+          (id: any) =>
+            !Number.isInteger(id) ||
+            !story.articles[id] ||
+            groupOf(story.articles[id].side) !== side,
+        )
+      )
+        return false;
+    }
+    if (!any) return false;
+  }
+  return true;
+}
+
 export function publicationGate(data: any, allowModelGrouping = false) {
   if (
     !data ||
@@ -83,6 +119,11 @@ export function publicationGate(data: any, allowModelGrouping = false) {
   return {
     ...data,
     stories: data.stories.map((story: any) => {
+      // An invalid comparison is dropped on its own; it never affects the story or its summary.
+      if (story.comparison && !validComparison(story)) {
+        const { comparison, ...withoutComparison } = story;
+        story = withoutComparison;
+      }
       if (story.synthesis_status === 'ready' && validSummary(story)) return story;
       if (!story.synthesis && story.synthesis_status !== 'ready') return story;
       const { synthesis, ...sourceOnly } = story;
