@@ -165,3 +165,51 @@ test('switching editions updates the query string and keeps filters', () => {
   assert.equal(url.searchParams.get('q'), 'כסף');
   assert.equal(url.searchParams.get('side'), 'left');
 });
+
+test('comparison section: bullets, one-side phrasing, explicit no-difference and absent states', () => {
+  const c = context();
+  const story = {
+    articles: [
+      { source: 'ימין א', side: 'right', url: 'https://r1.example.com' },
+      { source: 'ימין ב', side: 'right', url: 'https://r2.example.com' },
+      { source: 'שמאל א', side: 'left', url: 'https://l1.example.com' },
+    ],
+    comparison: {
+      status: 'ready',
+      bullets: [
+        {
+          right: { text: 'דרישת רוטציה', article_ids: [0, 1] },
+          left: { text: 'הצעה ללא רוטציה', article_ids: [2] },
+        },
+        { right: { text: 'ועדה לביטול חוקים', article_ids: [1] } },
+      ],
+    },
+  };
+  c.run(`globalThis.s1=${JSON.stringify(story)}`);
+  const html = c.run('comparisonHtml(s1)');
+  assert.ok(html.includes('מה שונה בסיקור'));
+  assert.ok(html.includes('<b class="r">ימין</b>: דרישת רוטציה'));
+  assert.ok(html.includes('<b class="l">שמאל</b>: הצעה ללא רוטציה'));
+  assert.ok(html.includes('ועדה לביטול חוקים - הוזכר רק ב<b class="r">ימין</b>'));
+  assert.ok(html.includes('href="https://r1.example.com"'));
+  assert.ok(html.includes('href="https://l1.example.com"'));
+  assert.ok(html.includes('>ימין א</a>'));
+  assert.ok(html.includes('>שמאל א</a>'));
+  assert.ok(html.includes('על בסיס הטקסט שנאסף בלבד'));
+
+  c.run(`globalThis.s2={articles:s1.articles,comparison:{status:'no_difference',bullets:[]}}`);
+  const none = c.run('comparisonHtml(s2)');
+  assert.ok(none.includes('לא נמצאו הבדלים ברורים'));
+  assert.ok(!none.includes('<ul>'));
+
+  c.run(`globalThis.s3={articles:s1.articles}`);
+  assert.equal(c.run('comparisonHtml(s3)'), '');
+
+  // Escaping: fragment text must not inject markup.
+  c.run(
+    `globalThis.s4={articles:s1.articles,comparison:{status:'ready',bullets:[{left:{text:'<img src=x>',article_ids:[2]}}]}}`,
+  );
+  const escaped = c.run('comparisonHtml(s4)');
+  assert.ok(!escaped.includes('<img'));
+  assert.ok(escaped.includes('&lt;img'));
+});

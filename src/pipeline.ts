@@ -29,7 +29,12 @@ import { articleRegistry, resolveArticles, articleId } from './article-registry.
 import { createArticleSnapshot } from './article-snapshot.ts';
 import { validateGroupingConfig, type GroupingResult } from './grouping.ts';
 import { publishableGroups } from './grouping-publication.ts';
-import { accessCaveats, synthesisInput, type StorySynthesis } from './synthesis.ts';
+import {
+  accessCaveats,
+  synthesisInput,
+  type StoryComparison,
+  type StorySynthesis,
+} from './synthesis.ts';
 import { orderedEvidence, summarizeStories, summaryCache } from './summary-runner.ts';
 import { archiveCurrentEdition } from './editions.ts';
 
@@ -52,6 +57,7 @@ interface Story {
   articles: StoryArticle[];
   synthesis?: StorySynthesis;
   synthesis_status?: string;
+  comparison?: StoryComparison;
   caveats?: string[];
 }
 
@@ -232,7 +238,7 @@ async function main() {
     evidence: synthesisInput(clusters[i].items),
   }));
   for (const [index, c] of clusters.entries()) {
-    const { synthesis, status: synthesis_status } = summaries[index];
+    const { synthesis, status: synthesis_status, comparison } = summaries[index];
     const heldBack = !!c.unvalidated;
     const counts: Record<string, number> = {};
     for (const i of c.items) {
@@ -243,6 +249,7 @@ async function main() {
       summary: storySummary(c.items), // Existing source text, never a generated event summary.
       synthesis,
       synthesis_status,
+      ...(comparison ? { comparison } : {}),
       caveats: accessCaveats(c.items),
       ...(grouping ? { grouping_status: heldBack ? 'unvalidated' : 'schema_assigned' } : {}),
       counts, // actual article counts per raw owner label

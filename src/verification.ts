@@ -24,6 +24,8 @@ export const VERIFICATION_SCHEMA = {
 export interface VerificationCandidate {
   id: string;
   summary: StorySynthesis;
+  /** claim_level: article_ids are model-selected citations within the named side (comparison bullets). */
+  citation_kind?: 'claim_level';
 }
 export interface Verdict {
   id: string;
