@@ -48,7 +48,7 @@ export interface LlmClient {
 }
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'openrouter/auto';
+export const DEFAULT_MODEL = 'openrouter/free';
 
 /** Gemini dialect (OBJECT/STRING/ARRAY/BOOLEAN) -> JSON Schema types OpenRouter expects. */
 function toJsonSchema(schema: unknown): unknown {

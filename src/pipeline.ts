@@ -1,4 +1,4 @@
-import { decisionFallback, requestBudget, budgetedLlm } from './decision-fallback.ts';
+import { decisionFallback, requestBudget, generationFallback } from './decision-fallback.ts';
 import { decisionPolicy, SELECTED_FALLBACK_MODELS } from './decision-policy.ts';
 import { createDecisionClient } from './decisions.ts';
 import { groupWithDecisions } from './decision-grouping.ts';
@@ -23,7 +23,7 @@ import { parseFeed, parseI24News, withinArticleWindow, type FeedItem } from './r
 import { extractFulltext } from './extract.ts';
 import { type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
-import { createLlmClient } from './llm.ts';
+import { createLlmClient, createOpenRouterClient, DEFAULT_MODEL } from './llm.ts';
 import { auditedClient, auditedDecisionClient } from './call-audit.ts';
 import { articleRegistry, resolveArticles, articleId } from './article-registry.ts';
 import { createArticleSnapshot } from './article-snapshot.ts';
@@ -163,8 +163,14 @@ async function main() {
   const summaryAttemptBudget = requestBudget(policy.maxCalls);
   const groupingAttemptBudget = requestBudget(groupingConfig.maxCalls);
   const llm = provider
-    ? budgetedLlm(
-        auditedClient(provider, join(reviewDir, 'calls.json'), callAudit),
+    ? generationFallback(
+        [
+          provider,
+          ...((process.env.OPENROUTER_MODEL || DEFAULT_MODEL) === 'openrouter/free' &&
+          process.env.REALNEWS_GENERATION_AUTO_FALLBACK !== 'false'
+            ? [createOpenRouterClient(process.env.OPENROUTER_API_KEY!, 'openrouter/auto')]
+            : []),
+        ].map((client) => auditedClient(client, join(reviewDir, 'calls.json'), callAudit)),
         summaryAttemptBudget,
       )
     : undefined;

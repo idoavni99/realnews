@@ -266,7 +266,7 @@ test('final sides-only model and verifier contract accepts evidence and fails cl
   try {
     globalThis.fetch = async (_url, init) => {
       const body = JSON.parse(String(init?.body));
-      assert.equal(body.model, 'openrouter/auto');
+      assert.equal(body.model, 'openrouter/free');
       assert.deepEqual(body.response_format.json_schema.schema.required, ['sides']);
       assert.equal(body.response_format.json_schema.schema.type, 'object');
       return reply({ sides: { left: 'ראש הממשלה נפגש עם השר', center: '', right: '' } });

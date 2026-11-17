@@ -28,6 +28,24 @@ export function budgetedLlm(client: LlmClient, consume: () => void): LlmClient {
   };
 }
 
+/** Each physical generation attempt is separately audited by its wrapped client and consumes the shared cap. */
+export function generationFallback(clients: LlmClient[], consume: () => void): LlmClient {
+  if (!clients.length) throw new Error('No generation providers configured');
+  return {
+    async generateJson(request) {
+      for (const [index, client] of clients.entries()) {
+        consume();
+        try {
+          return await client.generateJson(request);
+        } catch (error) {
+          if (index === clients.length - 1 || !canFailOver(error)) throw error;
+        }
+      }
+      throw new Error('No generation result');
+    },
+  };
+}
+
 export function decisionFallback(
   clients: DecisionClient[],
   budgets: Record<'Grouping' | 'Verification', () => void>,
