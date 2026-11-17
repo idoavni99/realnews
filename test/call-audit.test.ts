@@ -97,7 +97,8 @@ test('pipeline initializes private review directory before journal client', () =
     ' ',
   );
   assert.ok(
-    pipeline.indexOf('const reviewDir =') < pipeline.indexOf('const llm = provider ? budgetedLlm'),
+    pipeline.indexOf('const reviewDir =') <
+      pipeline.indexOf('const llm = provider ? generationFallback'),
   );
 });
 

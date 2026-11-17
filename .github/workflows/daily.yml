@@ -19,7 +19,7 @@ on:
         type: boolean
         default: false
       free_test:
-        description: Use openrouter/free for this staged test only (does not change provider default)
+        description: Use free only for this staged test, without paid auto fallback
         type: boolean
         default: false
 
@@ -74,7 +74,10 @@ jobs:
           REALNEWS_GROUPING_MAX_ARTICLES: '6'
           REALNEWS_GROUPING_OUTPUT_TOKENS_PER_ARTICLE: '1500'
           REALNEWS_DECISION_THRESHOLD: ${{ vars.REALNEWS_DECISION_THRESHOLD }}
-          OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || vars.OPENROUTER_MODEL || 'openrouter/auto' }}
+          # Future workflow runs start free, regardless of an older repository model variable.
+          # A bounded auto fallback is used only for explicit unavailable/rate-limit HTTP errors.
+          OPENROUTER_MODEL: 'openrouter/free'
+          REALNEWS_GENERATION_AUTO_FALLBACK: ${{ inputs.free_test && 'false' || 'true' }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
       - name: Save verified synthesis checkpoints
