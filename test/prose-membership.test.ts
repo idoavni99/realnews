@@ -30,7 +30,7 @@ test('model returns per-side prose only and code attaches exact known side membe
       return { json: { sides: { left: '', center: 'פתיח', right: '' } } };
     },
   });
-  assert.deepEqual(result.sides.center.summary, [
+  assert.deepEqual(result.synthesis.sides.center.summary, [
     { text: 'פתיח', article_ids: [0, 1], evidence_kind: 'side_membership' },
   ]);
   assert.equal(SYNTHESIS_SCHEMA.properties.sides.properties.center.type, 'STRING');

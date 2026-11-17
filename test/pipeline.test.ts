@@ -272,15 +272,23 @@ test('final sides-only model and verifier contract accepts evidence and fails cl
       return reply({ sides: { left: 'ראש הממשלה נפגש עם השר', center: '', right: '' } });
     };
     assert.deepEqual(await synthesizeStory(items, 'test-not-a-key'), {
-      sides: {
-        left: {
-          summary: [
-            { text: 'ראש הממשלה נפגש עם השר', article_ids: [0], evidence_kind: 'side_membership' },
-          ],
+      synthesis: {
+        sides: {
+          left: {
+            summary: [
+              {
+                text: 'ראש הממשלה נפגש עם השר',
+                article_ids: [0],
+                evidence_kind: 'side_membership',
+              },
+            ],
+          },
+          center: { summary: [] },
+          right: { summary: [] },
         },
-        center: { summary: [] },
-        right: { summary: [] },
       },
+      comparison: undefined,
+      comparison_error: undefined,
     });
     globalThis.fetch = async () =>
       reply({
