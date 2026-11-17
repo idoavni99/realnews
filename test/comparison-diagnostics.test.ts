@@ -1,0 +1,117 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { comparisonDiagnostics, comparisonDetails } from '../src/comparison-diagnostics.ts';
+import type { SummaryResult } from '../src/summary-runner.ts';
+import type { FeedItem } from '../src/rss.ts';
+
+const items = (sides: FeedItem['side'][]): FeedItem[] =>
+  sides.map((side, i) => ({
+    source: 'source',
+    sourceName: 'source',
+    side,
+    title: 'PRIVATE TITLE',
+    url: 'https://private.invalid/' + i,
+    summary: 'PRIVATE EVIDENCE',
+    published: '2026-11-17T00:00:00Z',
+  }));
+const story = { items: items(['center_left', 'center_right']) };
+const result = (value: Partial<SummaryResult>): SummaryResult => ({
+  fingerprint: 'PRIVATE FINGERPRINT',
+  status: 'ready',
+  attempts: [],
+  ...value,
+});
+
+test('comparison outcome counters distinguish verified, absent, cached, failed and ineligible states', () => {
+  const stories = Array.from({ length: 5 }, () => story).concat([{ items: items(['center']) }]);
+  const results = [
+    result({ comparison: { status: 'ready', bullets: [] } }),
+    result({ comparison: { status: 'no_difference', bullets: [] } }),
+    result({}),
+    result({ status: 'unavailable' }),
+    result({ attempts: [{ round: 1, comparison_rejected: true }] }),
+    result({ comparison: { status: 'no_difference', bullets: [] } }),
+  ];
+  assert.deepEqual(comparisonDiagnostics(stories, results), {
+    eligible: 5,
+    ready: 1,
+    no_difference: 1,
+    summary_not_ready: 1,
+    cached_without_comparison: 1,
+    missing_after_attempt: 1,
+    rejected_attempts: 1,
+    invalid_shape_attempts: 0,
+    citation_error_attempts: 0,
+    number_error_attempts: 0,
+    length_error_attempts: 0,
+  });
+});
+
+test('comparison diagnostics expose fixed reason-class counts only, never raw evidence or errors', () => {
+  const errors = [
+    'Invalid difference citation',
+    'Citation without difference text',
+    'Unsupported number in difference',
+    'Too many differences',
+    'Oversized difference',
+    'Invalid differences',
+    'PRIVATE SECRET ERROR',
+  ];
+  const counts = comparisonDiagnostics(
+    [story],
+    [
+      result({
+        attempts: errors.map((comparison_error) => ({
+          round: 1,
+          comparison_error,
+          error: 'PRIVATE TRANSPORT ERROR',
+          draft: 'PRIVATE MODEL OUTPUT',
+        })),
+      }),
+    ],
+  );
+  assert.equal(counts.citation_error_attempts, 2);
+  assert.equal(counts.number_error_attempts, 1);
+  assert.equal(counts.length_error_attempts, 2);
+  assert.equal(counts.invalid_shape_attempts, 2);
+  assert.ok(!JSON.stringify(counts).includes('PRIVATE'));
+  assert.ok(Object.values(counts).every((n) => Number.isSafeInteger(n) && n >= 0));
+});
+
+test('detailed lifecycle rows identify stages without exposing private payloads or raw errors', () => {
+  const rows = comparisonDetails(
+    [story, story, story],
+    [
+      result({
+        attempts: [
+          {
+            round: 1,
+            draft: { comparison: { status: 'ready' }, text: 'PRIVATE OUTPUT' },
+            comparison_rejected: true,
+          },
+        ],
+      }),
+      result({
+        status: 'unavailable',
+        attempts: [{ round: 1, error: 'Synthesis HTTP 429 PRIVATE CONTENT' }],
+      }),
+      result({
+        attempts: [
+          {
+            round: 1,
+            draft: 'PRIVATE OUTPUT',
+            comparison_error: 'PRIVATE ERROR',
+            error: 'Verification rejected summary',
+          },
+        ],
+      }),
+    ],
+  );
+  assert.equal(rows[0].attempts[0].generated_comparison, 'ready');
+  assert.equal(rows[0].attempts[0].comparison_outcome, 'verification_rejected');
+  assert.equal(rows[1].attempts[0].summary_error_class, 'http_429');
+  assert.equal(rows[1].outcome, 'summary_not_ready');
+  assert.equal(rows[2].attempts[0].comparison_outcome, 'invalid_shape');
+  assert.equal(rows[2].attempts[0].summary_error_class, 'verification_rejected');
+  assert.ok(!JSON.stringify(rows).includes('PRIVATE'));
+});
