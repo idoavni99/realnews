@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generationFallback, decisionFallback, requestBudget } from '../src/decision-fallback.ts';
 import {
+  backupRouterModel,
   createLlmClient,
   createOpenRouterClient,
   LlmOutputError,
@@ -129,7 +130,13 @@ test('shared budget counts free, auto and Decisions separately and stops before 
   assert.deepEqual(capped.order, ['free']);
 });
 
-test('free default and explicit model compatibility; workflow pins future regular runs to free', async () => {
+test('managed routers back each other up; explicit models get no backup', () => {
+  assert.equal(backupRouterModel('openrouter/free'), 'openrouter/auto');
+  assert.equal(backupRouterModel('openrouter/auto'), 'openrouter/free');
+  assert.equal(backupRouterModel('explicit/model'), undefined);
+});
+
+test('free default and explicit model compatibility; workflow pins future regular runs to auto', async () => {
   const original = globalThis.fetch;
   const models: string[] = [];
   globalThis.fetch = async (_url, init) => {
@@ -147,7 +154,14 @@ test('free default and explicit model compatibility; workflow pins future regula
     globalThis.fetch = original;
   }
   const workflow = readFileSync(new URL('../.github/workflows/daily.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /OPENROUTER_MODEL: 'openrouter\/free'/);
+  assert.match(
+    workflow,
+    /OPENROUTER_MODEL: \$\{\{ inputs\.free_test && 'openrouter\/free' \|\| 'openrouter\/auto' \}\}/,
+  );
+  assert.match(
+    workflow,
+    /REALNEWS_GENERATION_AUTO_FALLBACK: \$\{\{ inputs\.free_test && 'false' \|\| 'true' \}\}/,
+  );
   assert.ok(!workflow.includes('vars.OPENROUTER_MODEL'));
 });
 

@@ -23,7 +23,12 @@ import { parseFeed, parseI24News, withinArticleWindow, type FeedItem } from './r
 import { extractFulltext } from './extract.ts';
 import { type Cluster } from './cluster.ts';
 import { runPolicy } from './run-policy.ts';
-import { createLlmClient, createOpenRouterClient, DEFAULT_MODEL } from './llm.ts';
+import {
+  backupRouterModel,
+  createLlmClient,
+  createOpenRouterClient,
+  DEFAULT_MODEL,
+} from './llm.ts';
 import { auditedClient, auditedDecisionClient } from './call-audit.ts';
 import { articleRegistry, resolveArticles, articleId } from './article-registry.ts';
 import { createArticleSnapshot } from './article-snapshot.ts';
@@ -163,13 +168,13 @@ async function main() {
   // Persist before/after every attempted call, including failed validation and cancellation.
   const summaryAttemptBudget = requestBudget(policy.maxCalls);
   const groupingAttemptBudget = requestBudget(groupingConfig.maxCalls);
+  const generationBackup = backupRouterModel(process.env.OPENROUTER_MODEL || DEFAULT_MODEL);
   const llm = provider
     ? generationFallback(
         [
           provider,
-          ...((process.env.OPENROUTER_MODEL || DEFAULT_MODEL) === 'openrouter/free' &&
-          process.env.REALNEWS_GENERATION_AUTO_FALLBACK !== 'false'
-            ? [createOpenRouterClient(process.env.OPENROUTER_API_KEY!, 'openrouter/auto')]
+          ...(generationBackup && process.env.REALNEWS_GENERATION_AUTO_FALLBACK !== 'false'
+            ? [createOpenRouterClient(process.env.OPENROUTER_API_KEY!, generationBackup)]
             : []),
         ].map((client) => auditedClient(client, join(reviewDir, 'calls.json'), callAudit)),
         summaryAttemptBudget,

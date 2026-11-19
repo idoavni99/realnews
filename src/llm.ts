@@ -50,6 +50,18 @@ export interface LlmClient {
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_MODEL = 'openrouter/free';
 
+/**
+ * The other managed OpenRouter generation router, when the primary is one of
+ * the two; an explicit model gets no automatic backup. Direction is set by
+ * deployment: regular workflow runs pin auto with free as backup, local
+ * default stays free with auto as backup.
+ */
+export function backupRouterModel(primary: string): string | undefined {
+  if (primary === 'openrouter/free') return 'openrouter/auto';
+  if (primary === 'openrouter/auto') return 'openrouter/free';
+  return undefined;
+}
+
 /** Gemini dialect (OBJECT/STRING/ARRAY/BOOLEAN) -> JSON Schema types OpenRouter expects. */
 function toJsonSchema(schema: unknown): unknown {
   if (Array.isArray(schema)) return schema.map(toJsonSchema);
