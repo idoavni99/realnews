@@ -151,11 +151,13 @@ test('synthesizeStory: extended contract only for qualifying stories, invalid di
   const plain = await synthesizeStory(centerOnly, llm);
   assert.ok(!JSON.stringify(requests[0].schema).includes('differences'));
   assert.ok(!requests[0].system.includes('differences'));
+  assert.equal(requests[0].maxOutputTokens, 3000);
   assert.equal(plain.comparison, undefined);
   assert.equal(plain.comparison_error, undefined);
 
   const qualifying = await synthesizeStory(bothSides, llm);
   assert.ok(JSON.stringify(requests[1].schema).includes('differences'));
+  assert.equal(requests[1].maxOutputTokens, 4000);
   assert.ok(!requests[1].system.includes('overall event summary or comparison'));
   assert.ok(
     !requests[1].system.includes(

@@ -307,7 +307,8 @@ export async function synthesizeStory(
     input: synthesisInput(items),
     schema: withDifferences ? SYNTHESIS_WITH_DIFFERENCES_SCHEMA : SYNTHESIS_SCHEMA,
     temperature: 0.1,
-    maxOutputTokens: 3000,
+    // The extended contract (sides + differences) needs more headroom than the sides-only one.
+    maxOutputTokens: withDifferences ? 4000 : 3000,
   });
   const value = json as Record<string, unknown>;
   const allowed = withDifferences ? ['sides', 'differences'] : ['sides'];
