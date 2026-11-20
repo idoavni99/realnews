@@ -1,4 +1,10 @@
-import { decisionFallback, requestBudget, generationFallback } from './decision-fallback.ts';
+import {
+  decisionFallback,
+  requestBudget,
+  generationFallback,
+  costBudget,
+  costCapLlm,
+} from './decision-fallback.ts';
 import { decisionPolicy, SELECTED_FALLBACK_MODELS } from './decision-policy.ts';
 import { createDecisionClient } from './decisions.ts';
 import { groupWithDecisions } from './decision-grouping.ts';
@@ -169,6 +175,11 @@ async function main() {
   const summaryAttemptBudget = requestBudget(policy.maxCalls);
   const groupingAttemptBudget = requestBudget(groupingConfig.maxCalls);
   const generationBackup = backupRouterModel(process.env.OPENROUTER_MODEL || DEFAULT_MODEL);
+  // Optional per-run paid-spend cap (REALNEWS_RUN_BUDGET_USD): once provider-reported cost
+  // reaches it, the paid route stops and the fallback chain continues on cheaper routes.
+  const runCostBudget = process.env.REALNEWS_RUN_BUDGET_USD
+    ? costBudget(Number(process.env.REALNEWS_RUN_BUDGET_USD))
+    : undefined;
   const llm = provider
     ? generationFallback(
         [
@@ -176,7 +187,10 @@ async function main() {
           ...(generationBackup && process.env.REALNEWS_GENERATION_AUTO_FALLBACK !== 'false'
             ? [createOpenRouterClient(process.env.OPENROUTER_API_KEY!, generationBackup)]
             : []),
-        ].map((client) => auditedClient(client, join(reviewDir, 'calls.json'), callAudit)),
+        ].map((client) => {
+          const audited = auditedClient(client, join(reviewDir, 'calls.json'), callAudit);
+          return runCostBudget ? costCapLlm(audited, runCostBudget) : audited;
+        }),
         summaryAttemptBudget,
       )
     : undefined;

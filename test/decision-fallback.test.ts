@@ -1,7 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decisionFallback, requestBudget, budgetedLlm } from '../src/decision-fallback.ts';
-import { LlmOutputError } from '../src/llm.ts';
+import {
+  decisionFallback,
+  requestBudget,
+  budgetedLlm,
+  costBudget,
+  costCapLlm,
+  canFailOver,
+  generationFallback,
+} from '../src/decision-fallback.ts';
+import { LlmOutputError, type LlmClient } from '../src/llm.ts';
 import type { DecisionClient } from '../src/decisions.ts';
 
 const request = {
@@ -155,4 +163,72 @@ test('synthesis and verification share physical attempt cap including failed fal
   await client.decide({ ...request, label: 'Verification' });
   await assert.rejects(() => llm.generateJson(synthesisRequest), /budget exhausted/);
   assert.equal(synthesis, 1);
+});
+
+const llmRequest = {
+  label: 'Synthesis' as const,
+  system: '',
+  input: {},
+  schema: {},
+  temperature: 0,
+  maxOutputTokens: 1,
+};
+
+test('cost budget validates its limit and accumulates only reported cost', () => {
+  for (const bad of [0, -1, NaN, Infinity]) assert.throws(() => costBudget(bad), /Invalid/);
+  const budget = costBudget(0.5);
+  budget.record(undefined);
+  budget.record({});
+  assert.equal(budget.spent(), 0);
+  budget.record({ cost: 0.2 });
+  assert.equal(budget.spent(), 0.2);
+  assert.equal(budget.exhausted(), false);
+  budget.record({ cost: 0.3 });
+  assert.equal(budget.exhausted(), true);
+});
+
+test('cost cap blocks the paid route at the budget and fails over to the free route', async () => {
+  const budget = costBudget(0.5);
+  let paidCalls = 0;
+  const paid: LlmClient = {
+    async generateJson() {
+      paidCalls++;
+      return { json: { route: 'paid' }, usage: { cost: 0.3 } };
+    },
+  };
+  const free: LlmClient = {
+    async generateJson() {
+      return { json: { route: 'free' }, usage: { cost: 0 } };
+    },
+  };
+  const client = generationFallback([costCapLlm(paid, budget), free], () => {});
+  assert.deepEqual((await client.generateJson(llmRequest)).json, { route: 'paid' });
+  // The cap blocks the next call once the limit is reached, so overshoot is at most one call.
+  assert.deepEqual((await client.generateJson(llmRequest)).json, { route: 'paid' });
+  assert.equal(paidCalls, 2);
+  assert.deepEqual((await client.generateJson(llmRequest)).json, { route: 'free' });
+  assert.equal(paidCalls, 2);
+  assert.equal(budget.spent(), 0.6);
+});
+
+test('cost-cap errors are fail-overable and failed paid calls still record cost', async () => {
+  const budget = costBudget(0.5);
+  const paid: LlmClient = {
+    async generateJson() {
+      throw new LlmOutputError('Synthesis HTTP 503', {
+        requested_model: 'mock',
+        content_chars: 0,
+        http_status: 503,
+        usage: { cost: 0.6 },
+      });
+    },
+  };
+  const capped = costCapLlm(paid, budget);
+  await assert.rejects(() => capped.generateJson(llmRequest), /HTTP 503/);
+  assert.equal(budget.spent(), 0.6);
+  const blocked = await capped.generateJson(llmRequest).catch((e) => e);
+  assert.ok(blocked instanceof LlmOutputError);
+  assert.match(blocked.message, /cost cap/);
+  assert.equal(blocked.diagnostics?.cost_cap, true);
+  assert.equal(canFailOver(blocked), true);
 });

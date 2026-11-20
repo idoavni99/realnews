@@ -29,6 +29,7 @@ export interface LlmDiagnostics {
   content_chars: number;
   http_status?: number;
   retry_after?: string;
+  cost_cap?: boolean;
 }
 export class LlmOutputError extends Error {
   diagnostics?: LlmDiagnostics;
@@ -85,9 +86,9 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
           provider: { require_parameters: true },
           temperature: req.temperature,
           max_tokens: req.maxOutputTokens,
-          ...(['Grouping', 'Reconciliation'].includes(req.label)
-            ? { reasoning: { effort: 'low' } }
-            : {}),
+          // Low reasoning effort everywhere: hidden reasoning tokens count against
+          // max_tokens, and at default effort they repeatedly truncated synthesis.
+          reasoning: { effort: 'low' },
           messages: [
             { role: 'system', content: req.system },
             { role: 'user', content: JSON.stringify(req.input) },
