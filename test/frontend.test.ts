@@ -213,3 +213,61 @@ test('comparison section: bullets, one-side phrasing, explicit no-difference and
   assert.ok(!escaped.includes('<img'));
   assert.ok(escaped.includes('&lt;img'));
 });
+
+test('side without a verified summary shows the first source raw RSS summary, unmistakably labeled', () => {
+  const c = context();
+  c.run(
+    `DATA={generated_at:new Date().toISOString(),window_hours:12,monitored_sides:['right','center','left'],source_health:{},stories:[]};`,
+  );
+  const story = {
+    synthesis_status: 'unavailable',
+    articles: [
+      { source: 'ימין א', side: 'right', url: 'https://r1.example.com', summary: 'תקציר ראשון' },
+      {
+        source: 'ימין ב',
+        side: 'center_right',
+        url: 'https://r2.example.com',
+        summary: 'תקציר שני',
+      },
+      { source: 'שמאל א', side: 'left', url: 'https://l1.example.com', summary: '' },
+    ],
+  };
+  c.run(`globalThis.story=${JSON.stringify(story)}`);
+  const html = c.run('sideSummariesHtml(story)');
+  assert.ok(html.includes('תקציר RSS גולמי'));
+  assert.ok(html.includes('לא עבר אימות'));
+  // First source in article order wins for its side group; the second is not shown.
+  assert.ok(html.includes('תקציר ראשון'));
+  assert.ok(!html.includes('תקציר שני'));
+  assert.ok(html.includes('href="https://r1.example.com"'));
+  assert.ok(html.includes('class="raw-rss"'));
+  // A side whose only article has an empty RSS summary keeps the explicit unavailable line.
+  assert.ok(html.includes('יש כתבות, אך אין סיכום מאומת זמין'));
+  // A side with no articles keeps the absence wording, never a raw fallback.
+  assert.ok(html.includes('לא נמצאו כתבות בנושא במקורות שבמעקב'));
+
+  // A ready story never shows the raw badge, even beside a side with no verified rows.
+  c.run(
+    `globalThis.readyStory={synthesis_status:'ready',synthesis:{sides:{right:{summary:[{text:'סיכום מאומת',article_ids:[0],evidence_kind:'exact'}]}}},articles:[{source:'ימין א',side:'right',url:'https://r1',summary:'x'},{source:'שמאל א',side:'left',url:'https://l1',summary:'תקציר שמאל גולמי'}]};`,
+  );
+  const readyHtml = c.run('sideSummariesHtml(readyStory)');
+  assert.ok(readyHtml.includes('סיכום מאומת'));
+  // ...but a side with articles and no verified rows does get the labeled raw fallback.
+  assert.ok(readyHtml.includes('תקציר שמאל גולמי'));
+  assert.ok(readyHtml.includes('תקציר RSS גולמי'));
+
+  // Escaping: RSS text must not inject markup.
+  c.run(
+    `globalThis.story2={synthesis_status:'unavailable',articles:[{source:'x',side:'right',url:'https://x',summary:'<img src=x>'}]};`,
+  );
+  const escaped = c.run('sideSummariesHtml(story2)');
+  assert.ok(!escaped.includes('<img'));
+  assert.ok(escaped.includes('&lt;img'));
+
+  // Unvalidated grouping still shows nothing but the grouping note.
+  c.run(
+    `globalThis.story3={grouping_status:'unvalidated',synthesis_status:'unavailable',articles:story.articles};`,
+  );
+  const grouped = c.run('sideSummariesHtml(story3)');
+  assert.ok(!grouped.includes('raw-rss'));
+});
