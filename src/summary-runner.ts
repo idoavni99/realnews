@@ -130,7 +130,9 @@ export async function summarizeStories(
     for (let i = 0; i < stories.length; i++) {
       const result = results[i];
       if (result.status !== 'pending') continue;
-      if (!options.llm || unavailable || calls + 2 > options.maxCalls) continue;
+      const qualifying = qualifiesForComparison(stories[i].items);
+      // Reserve the attempt's worst case: synthesis + summary verification (+ comparison verification).
+      if (!options.llm || unavailable || calls + (qualifying ? 3 : 2) > options.maxCalls) continue;
       const attempt: SummaryResult['attempts'][number] = { round };
       result.attempts.push(attempt);
       let accepted: StorySynthesis | undefined;
@@ -140,25 +142,37 @@ export async function summarizeStories(
         const draft = await synthesizeStory(stories[i].items, options.llm);
         attempt.draft = draft;
         if (draft.comparison_error) attempt.comparison_error = draft.comparison_error;
-        calls++;
-        const candidates: VerificationCandidate[] = [{ id: 'summary', summary: draft.synthesis }];
         const asCandidate = draft.comparison ? comparisonCandidate(draft.comparison) : undefined;
-        if (asCandidate)
-          candidates.push({ id: 'comparison', summary: asCandidate, citation_kind: 'claim_level' });
-        const verdicts = options.verify
-          ? await options.verify(stories[i].items, candidates)
-          : await verifyCandidates(stories[i].items, candidates, options.llm);
-        attempt.verdicts = verdicts;
-        if (!verdicts.find((v) => v.id === 'summary')?.supported)
+        const verify = options.verify
+          ? options.verify
+          : (items: FeedItem[], candidates: VerificationCandidate[]) =>
+              verifyCandidates(items, candidates, options.llm);
+        // The summary is verified alone, in the same single-candidate shape as every
+        // non-qualifying story; the comparison's extra question set is checked only
+        // afterwards, so it can never change how the summary itself is judged.
+        calls++;
+        const summaryVerdicts = await verify(stories[i].items, [
+          { id: 'summary', summary: draft.synthesis },
+        ]);
+        attempt.verdicts = summaryVerdicts;
+        if (!summaryVerdicts.find((v) => v.id === 'summary')?.supported)
           throw new Error('Verification rejected summary');
         accepted = draft.synthesis;
-        if (draft.comparison) {
-          if (asCandidate && !verdicts.find((v) => v.id === 'comparison')?.supported) {
+        if (draft.comparison && asCandidate) {
+          calls++;
+          const comparisonVerdicts = await verify(stories[i].items, [
+            { id: 'comparison', summary: asCandidate, citation_kind: 'claim_level' },
+          ]);
+          attempt.verdicts = [...summaryVerdicts, ...comparisonVerdicts];
+          if (!comparisonVerdicts.find((v) => v.id === 'comparison')?.supported) {
             // A rejected comparison never takes down a verified summary; bullets are simply dropped.
             attempt.comparison_rejected = true;
           } else {
             acceptedComparison = draft.comparison;
           }
+        } else if (draft.comparison) {
+          // no_difference: nothing to verify.
+          acceptedComparison = draft.comparison;
         }
       } catch (e) {
         attempt.error = (e as Error).message.slice(0, 250);
