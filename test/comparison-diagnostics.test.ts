@@ -115,3 +115,49 @@ test('detailed lifecycle rows identify stages without exposing private payloads 
   assert.equal(rows[2].attempts[0].summary_error_class, 'verification_rejected');
   assert.ok(!JSON.stringify(rows).includes('PRIVATE'));
 });
+
+test('verdict reasons surface as fixed check names only, unknown shapes collapse', () => {
+  const rows = comparisonDetails(
+    [story],
+    [
+      result({
+        status: 'unavailable',
+        attempts: [
+          {
+            round: 1,
+            error: 'Verification rejected summary',
+            verdicts: [
+              {
+                id: 'summary',
+                supported: false,
+                reasons: [
+                  'decision_check_not_accepted:uncertainty',
+                  'decision_check_not_accepted:source_support',
+                  'decision_check_not_accepted:not_a_real_check',
+                  'PRIVATE FREE-TEXT REASON',
+                  42,
+                ],
+              },
+              {
+                id: 'comparison',
+                supported: false,
+                reasons: ['decision_check_not_accepted:same_event'],
+              },
+            ],
+          },
+          { round: 2, error: 'Truncated Synthesis: output token limit' },
+        ],
+      }),
+    ],
+  );
+  assert.deepEqual(rows[0].attempts[0].failed_checks, [
+    'uncertainty',
+    'source_support',
+    'unknown',
+    'unknown',
+    'unknown',
+  ]);
+  assert.deepEqual(rows[0].attempts[0].comparison_failed_checks, ['same_event']);
+  assert.equal(rows[0].attempts[1].failed_checks, undefined);
+  assert.ok(!JSON.stringify(rows).includes('PRIVATE'));
+});

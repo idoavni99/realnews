@@ -1,4 +1,5 @@
 import { qualifiesForComparison } from './synthesis.ts';
+import { VERIFICATION_CHECK_NAMES } from './decision-verification.ts';
 import type { FeedItem } from './rss.ts';
 import type { SummaryResult } from './summary-runner.ts';
 
@@ -8,6 +9,20 @@ function comparisonErrorClass(error: string) {
   if (error === 'Unsupported number in difference') return 'unsupported_number';
   if (['Too many differences', 'Oversized difference'].includes(error)) return 'length';
   return 'shape';
+}
+
+/** Fixed check names from verdict reasons, never free-text reasons: unknown shapes collapse to 'unknown'. */
+function failedChecks(verdicts: unknown, id: string): string[] | undefined {
+  if (!Array.isArray(verdicts)) return undefined;
+  const verdict = verdicts.find(
+    (v) => v && typeof v === 'object' && (v as { id?: unknown }).id === id,
+  ) as { reasons?: unknown } | undefined;
+  if (!verdict || !Array.isArray(verdict.reasons)) return undefined;
+  return verdict.reasons.map((reason: unknown) => {
+    const match =
+      typeof reason === 'string' ? reason.match(/^decision_check_not_accepted:(.+)$/) : null;
+    return match && VERIFICATION_CHECK_NAMES.includes(match[1]) ? match[1] : 'unknown';
+  });
 }
 
 function summaryErrorClass(error?: string) {
@@ -72,6 +87,8 @@ export function comparisonDetails(stories: { items: FeedItem[] }[], results: Sum
               : attempt.error
                 ? 'summary_attempt_failed'
                 : 'no_recorded_comparison_error',
+          failed_checks: failedChecks(attempt.verdicts, 'summary'),
+          comparison_failed_checks: failedChecks(attempt.verdicts, 'comparison'),
         })),
       },
     ];

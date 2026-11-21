@@ -207,14 +207,14 @@ test('runner: rejected comparison is dropped, verified summary still publishes a
       throw new Error('chat verification not used here');
     },
   };
+  const verifyCalls: string[][] = [];
   const verify = async (_items: FeedItem[], candidates: any[]) => {
-    assert.deepEqual(
-      candidates.map((c: any) => c.id),
-      ['summary', 'comparison'],
-    );
-    assert.equal(candidates[1].citation_kind, 'claim_level');
+    verifyCalls.push(candidates.map((c: any) => c.id));
+    // Summary and comparison are verified in separate single-candidate calls.
+    if (candidates[0].id === 'summary') return [{ id: 'summary', supported: true, reasons: [] }];
+    assert.equal(candidates[0].id, 'comparison');
+    assert.equal(candidates[0].citation_kind, 'claim_level');
     return [
-      { id: 'summary', supported: true, reasons: [] },
       {
         id: 'comparison',
         supported: false,
@@ -236,6 +236,7 @@ test('runner: rejected comparison is dropped, verified summary still publishes a
     assert.ok(result[0].synthesis);
     assert.equal(result[0].comparison, undefined);
     assert.equal(result[0].attempts[0].comparison_rejected, true);
+    assert.deepEqual(verifyCalls, [['summary'], ['comparison']]);
 
     // Cached summary must come back without another paid call and without the dropped comparison.
     const again = await summarizeStories(stories, {
@@ -326,8 +327,11 @@ test('summary rejection still fails the whole attempt, comparison included', asy
       };
     },
   };
-  const verify = async (_items: FeedItem[], candidates: any[]) =>
-    candidates.map((c: any) => ({ id: c.id, supported: false, reasons: ['x'] }));
+  const verifyCalls: string[][] = [];
+  const verify = async (_items: FeedItem[], candidates: any[]) => {
+    verifyCalls.push(candidates.map((c: any) => c.id));
+    return candidates.map((c: any) => ({ id: c.id, supported: false, reasons: ['x'] }));
+  };
   try {
     const result = await summarizeStories([{ items: bothSides }], {
       enabled: true,
@@ -341,6 +345,8 @@ test('summary rejection still fails the whole attempt, comparison included', asy
     assert.equal(result[0].synthesis, undefined);
     assert.equal(result[0].comparison, undefined);
     assert.equal(calls, 3); // three rounds of one paid synthesis call each
+    // A rejected summary ends the attempt before the comparison is ever verified.
+    assert.deepEqual(verifyCalls, [['summary'], ['summary'], ['summary']]);
   } finally {
     state.cleanup();
   }
