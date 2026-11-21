@@ -35,6 +35,27 @@ test('structured-output route requires parameter support and retains safe model 
     globalThis.fetch = old;
   }
 });
+test('every stage requests low reasoning effort, so hidden tokens cannot eat the output cap', async () => {
+  const old = globalThis.fetch;
+  try {
+    for (const label of ['Synthesis', 'Verification', 'Grouping', 'Reconciliation'] as const) {
+      globalThis.fetch = async (_u, init) => {
+        const b = JSON.parse(String(init?.body));
+        assert.deepEqual(b.reasoning, { effort: 'low' });
+        return new Response(
+          JSON.stringify({
+            model: 'selected/free',
+            usage: { cost: 0 },
+            choices: [{ finish_reason: 'stop', message: { content: '{}' } }],
+          }),
+        );
+      };
+      await createOpenRouterClient('not-real', 'openrouter/free').generateJson({ ...req, label });
+    }
+  } finally {
+    globalThis.fetch = old;
+  }
+});
 test('malformed, empty and truncated outputs fail with metadata, never raw response text', async () => {
   const old = globalThis.fetch;
   try {

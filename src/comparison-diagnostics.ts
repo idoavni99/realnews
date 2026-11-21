@@ -14,6 +14,7 @@ function summaryErrorClass(error?: string) {
   if (!error) return 'none';
   if (error === 'Verification rejected summary') return 'verification_rejected';
   if (/budget exhausted/.test(error)) return 'attempt_budget';
+  if (/cost cap/.test(error)) return 'cost_cap';
   const http = error.match(/HTTP (\d{3})/);
   if (http) return 'http_' + http[1];
   if (/Truncated/.test(error)) return 'output_limit';

@@ -80,6 +80,9 @@ jobs:
           # generation with no fallback, as before.
           OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || 'openrouter/auto' }}
           REALNEWS_GENERATION_AUTO_FALLBACK: ${{ inputs.free_test && 'false' || 'true' }}
+          # Per-run paid-spend cap: when provider-reported cost reaches it, the paid
+          # route stops and generation continues on the free fallback.
+          REALNEWS_RUN_BUDGET_USD: '0.5'
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/pipeline.ts
       - name: Save verified synthesis checkpoints
