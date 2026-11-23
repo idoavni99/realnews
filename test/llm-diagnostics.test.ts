@@ -136,3 +136,55 @@ test('HTTP errors retain bounded retry metadata without raw provider body', asyn
     globalThis.fetch = old;
   }
 });
+
+test('auto router gets cost tier and allowlist as a plugin, only for auto and only when configured', async () => {
+  const old = globalThis.fetch;
+  const bodies: any[] = [];
+  try {
+    globalThis.fetch = async (_u, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(
+        JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          provider: 'example',
+          usage: { cost: 0.001 },
+          choices: [{ finish_reason: 'stop', message: { content: '{"assignments":[]}' } }],
+        }),
+      );
+    };
+    await createOpenRouterClient('not-real', 'openrouter/auto', {
+      costTier: 'low',
+      allowedModels: ['google/gemini-2.5-flash', 'openai/gpt-4.1-mini'],
+    }).generateJson(req);
+    assert.deepEqual(bodies[0].plugins, [
+      {
+        id: 'auto-router',
+        cost_tier: 'low',
+        allowed_models: ['google/gemini-2.5-flash', 'openai/gpt-4.1-mini'],
+      },
+    ]);
+    await createOpenRouterClient('not-real', 'openrouter/auto').generateJson(req);
+    assert.equal('plugins' in bodies[1], false);
+    // Steering never leaks onto a different router or a pinned model.
+    await createOpenRouterClient('not-real', 'openrouter/free', { costTier: 'low' }).generateJson(
+      req,
+    );
+    assert.equal('plugins' in bodies[2], false);
+  } finally {
+    globalThis.fetch = old;
+  }
+});
+
+test('auto-router env parsing: unset stays off, values validate, models split cleanly', async () => {
+  const { autoRouterOptionsFromEnv } = await import('../src/llm.ts');
+  assert.equal(autoRouterOptionsFromEnv({}), undefined);
+  assert.deepEqual(autoRouterOptionsFromEnv({ REALNEWS_AUTO_COST_TIER: 'low' }), {
+    costTier: 'low',
+    allowedModels: undefined,
+  });
+  assert.deepEqual(
+    autoRouterOptionsFromEnv({ REALNEWS_AUTO_ALLOWED_MODELS: 'google/*, openai/gpt-4.1-mini ,' }),
+    { costTier: undefined, allowedModels: ['google/*', 'openai/gpt-4.1-mini'] },
+  );
+  assert.throws(() => autoRouterOptionsFromEnv({ REALNEWS_AUTO_COST_TIER: 'cheap' }));
+});

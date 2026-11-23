@@ -80,6 +80,9 @@ jobs:
           # explicit unavailable/rate-limit HTTP errors. free_test stages free-only
           # generation with no fallback, as before.
           OPENROUTER_MODEL: ${{ inputs.free_test && 'openrouter/free' || 'openrouter/auto' }}
+          # Keep the paid auto router on low-cost models; both are tunable via repo vars.
+          REALNEWS_AUTO_COST_TIER: ${{ vars.REALNEWS_AUTO_COST_TIER || 'low' }}
+          REALNEWS_AUTO_ALLOWED_MODELS: ${{ vars.REALNEWS_AUTO_ALLOWED_MODELS }}
           REALNEWS_GENERATION_AUTO_FALLBACK: ${{ inputs.free_test && 'false' || 'true' }}
           # Per-run paid-spend cap: when provider-reported cost reaches it, the paid
           # route stops and generation continues on the free fallback.

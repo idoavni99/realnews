@@ -75,7 +75,42 @@ function toJsonSchema(schema: unknown): unknown {
 }
 
 /** OpenRouter chat completions. No SDK: one fetch, structured JSON via response_format. */
-export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmClient {
+export const AUTO_ROUTER_COST_TIERS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+/** Per-request steering for openrouter/auto: cost policy and/or a model allowlist. */
+export interface AutoRouterOptions {
+  costTier?: string;
+  allowedModels?: string[];
+}
+
+/** Parse and validate the auto-router env knobs; undefined leaves the request untouched. */
+export function autoRouterOptionsFromEnv(
+  env: Record<string, string | undefined>,
+): AutoRouterOptions | undefined {
+  const costTier = env.REALNEWS_AUTO_COST_TIER?.trim() || undefined;
+  if (costTier && !(AUTO_ROUTER_COST_TIERS as readonly string[]).includes(costTier))
+    throw new Error('Invalid REALNEWS_AUTO_COST_TIER: ' + costTier);
+  const allowedModels = (env.REALNEWS_AUTO_ALLOWED_MODELS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (!costTier && !allowedModels.length) return undefined;
+  return { costTier, allowedModels: allowedModels.length ? allowedModels : undefined };
+}
+
+export function createOpenRouterClient(
+  key: string,
+  model = DEFAULT_MODEL,
+  autoRouter?: AutoRouterOptions,
+): LlmClient {
+  const autoRouterPlugin =
+    autoRouter && model.startsWith('openrouter/auto')
+      ? {
+          id: 'auto-router',
+          ...(autoRouter.costTier ? { cost_tier: autoRouter.costTier } : {}),
+          ...(autoRouter.allowedModels?.length ? { allowed_models: autoRouter.allowedModels } : {}),
+        }
+      : undefined;
   return {
     async generateJson(req) {
       const r = await fetch(OPENROUTER_URL, {
@@ -84,6 +119,7 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
         body: JSON.stringify({
           model,
           provider: { require_parameters: true },
+          ...(autoRouterPlugin ? { plugins: [autoRouterPlugin] } : {}),
           temperature: req.temperature,
           max_tokens: req.maxOutputTokens,
           // Low reasoning effort everywhere: hidden reasoning tokens count against
@@ -137,7 +173,11 @@ export function createOpenRouterClient(key: string, model = DEFAULT_MODEL): LlmC
 /** Provider selection. Returns undefined when no provider is configured (feature stays off). */
 export function createLlmClient(env: Record<string, string | undefined>): LlmClient | undefined {
   return env.OPENROUTER_API_KEY
-    ? createOpenRouterClient(env.OPENROUTER_API_KEY, env.OPENROUTER_MODEL)
+    ? createOpenRouterClient(
+        env.OPENROUTER_API_KEY,
+        env.OPENROUTER_MODEL,
+        autoRouterOptionsFromEnv(env),
+      )
     : undefined;
 }
 
