@@ -67,6 +67,10 @@ export interface BatchRecord {
   checkpoint_story_ids: string[];
   status: 'ok' | 'rejected' | 'unavailable' | 'skipped' | 'unresolved';
   failure?: OutputFailureKind;
+  /** Fixed label for a batch that ended unprocessed after retries; never free text. */
+  failure_class?: string;
+  /** Model calls spent on this batch, including retries. */
+  attempts?: number;
   input?: unknown;
   assignment_output?: unknown;
   usage?: Record<string, unknown>;
