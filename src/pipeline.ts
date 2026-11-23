@@ -233,8 +233,15 @@ async function main() {
       items: resolveArticles(g.articleIds, registry),
       unvalidated: false,
     }));
+    const failureClasses: Record<string, number> = {};
+    for (const batch of grouping.batches)
+      if (batch.failure_class)
+        failureClasses[batch.failure_class] = (failureClasses[batch.failure_class] ?? 0) + 1;
     console.error(
-      `grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map((b) => b.status).join(',')}`,
+      `grouping: ${grouping.batches.length} batches, ${grouping.calls} calls, ${rawClusters.length} stories, complete=${grouping.complete}, unvalidated articles=${grouping.unvalidated_articles}; batch statuses ${grouping.batches.map((b) => b.status).join(',')}` +
+        (Object.keys(failureClasses).length
+          ? `; failure classes ${JSON.stringify(failureClasses)}`
+          : ''),
     );
   } else throw new Error('Decision grouping is required');
   const clusters = rawClusters.sort(
