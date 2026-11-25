@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { comparisonDiagnostics, comparisonDetails } from '../src/comparison-diagnostics.ts';
+import {
+  comparisonDetails,
+  comparisonDiagnostics,
+  summaryDiagnostics,
+} from '../src/comparison-diagnostics.ts';
 import type { SummaryResult } from '../src/summary-runner.ts';
 import type { FeedItem } from '../src/rss.ts';
 
@@ -160,4 +164,42 @@ test('verdict reasons surface as fixed check names only, unknown shapes collapse
   assert.deepEqual(rows[0].attempts[0].comparison_failed_checks, ['same_event']);
   assert.equal(rows[0].attempts[1].failed_checks, undefined);
   assert.ok(!JSON.stringify(rows).includes('PRIVATE'));
+});
+
+test('summary diagnostics count every story status and failure class with fixed labels', () => {
+  const counts = summaryDiagnostics([
+    { fingerprint: 'a', status: 'ready', attempts: [] },
+    {
+      fingerprint: 'b',
+      status: 'ready',
+      attempts: [{ round: 1 }],
+    },
+    { fingerprint: 'c', status: 'single_source', attempts: [] },
+    { fingerprint: 'd', status: 'missing_text', attempts: [] },
+    {
+      fingerprint: 'e',
+      status: 'unavailable',
+      attempts: [
+        { round: 1, error: 'Verification rejected summary' },
+        { round: 1, error: 'Truncated Synthesis: output token limit' },
+        { round: 2, error: 'Synthesis HTTP 402' },
+      ],
+    },
+    { fingerprint: 'f', status: 'grouping_unvalidated', attempts: [] },
+  ]);
+  assert.deepEqual(counts, {
+    ready: 2,
+    cache_hits: 1,
+    single_source: 1,
+    missing_text: 1,
+    grouping_unvalidated: 1,
+    not_configured: 0,
+    unavailable: 1,
+    exhausted: 0,
+    failure_classes: {
+      verification_rejected: 1,
+      output_limit: 1,
+      http_402: 1,
+    },
+  });
 });

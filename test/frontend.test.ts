@@ -246,15 +246,25 @@ test('side without a verified summary shows the first source raw RSS summary, un
   // A side with no articles keeps the absence wording, never a raw fallback.
   assert.ok(html.includes('לא נמצאו כתבות בנושא במקורות שבמעקב'));
 
-  // A ready story never shows the raw badge, even beside a side with no verified rows.
+  // Single-source sides never show a paid rewrite or the warning badge: the excerpt
+  // renders as published with plain attribution, even when a cached summary exists.
   c.run(
     `globalThis.readyStory={synthesis_status:'ready',synthesis:{sides:{right:{summary:[{text:'סיכום מאומת',article_ids:[0],evidence_kind:'exact'}]}}},articles:[{source:'ימין א',side:'right',url:'https://r1',summary:'x'},{source:'שמאל א',side:'left',url:'https://l1',summary:'תקציר שמאל גולמי'}]};`,
   );
   const readyHtml = c.run('sideSummariesHtml(readyStory)');
-  assert.ok(readyHtml.includes('סיכום מאומת'));
-  // ...but a side with articles and no verified rows does get the labeled raw fallback.
+  assert.ok(!readyHtml.includes('סיכום מאומת'));
   assert.ok(readyHtml.includes('תקציר שמאל גולמי'));
-  assert.ok(readyHtml.includes('תקציר RSS גולמי'));
+  assert.ok(!readyHtml.includes('תקציר RSS גולמי'));
+  assert.ok(readyHtml.includes('תקציר הכתבה כפי שהתפרסם בפיד של'));
+  assert.ok(!readyHtml.includes('class="raw-rss"'));
+
+  // A merged side with several sources still shows its verified summary rows.
+  c.run(
+    `globalThis.mergedStory={synthesis_status:'ready',synthesis:{sides:{right:{summary:[{text:'סיכום מאומת',article_ids:[0,1],evidence_kind:'side_membership'}]}}},articles:[{source:'ימין א',side:'right',url:'https://r1',summary:'x'},{source:'ימין ב',side:'center_right',url:'https://r2',summary:'y'}]};`,
+  );
+  const mergedHtml = c.run('sideSummariesHtml(mergedStory)');
+  assert.ok(mergedHtml.includes('סיכום מאומת'));
+  assert.ok(!mergedHtml.includes('תקציר RSS גולמי'));
 
   // Escaping: RSS text must not inject markup.
   c.run(

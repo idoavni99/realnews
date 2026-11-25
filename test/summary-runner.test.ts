@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   orderedEvidence,
+  summarizedSides,
   summaryCache,
   summaryFingerprint,
   summarizeStories,
@@ -24,6 +25,10 @@ const item = (id: string): FeedItem => ({
   published: '2026-11-08T12:00:00Z',
 });
 const stories = ['a', 'b', 'c'].map((id) => ({ items: [item(id)] }));
+const sideItem = (id: string, side: string): FeedItem => ({ ...item(id), side });
+// Two same-side sources: a merged side that earns a paid summary under the per-side rule.
+const pair = (a: string, b: string) => ({ items: [item(a), item(b)] });
+const pairStories = ['a', 'b', 'c'].map((id) => pair(id + '1', id + '2'));
 const draft = { sides: { left: '', center: 'טקסט מקור', right: '' } };
 const pause = async () => {};
 function setup() {
@@ -36,7 +41,7 @@ function setup() {
   };
 }
 
-test('three rounds only retry failures; successful stories never repeat', async () => {
+test('three rounds only retry transient failures; successful stories never repeat', async () => {
   const state = setup();
   const order: string[] = [];
   const attempts: Record<string, number> = {};
@@ -46,21 +51,22 @@ test('three rounds only retry failures; successful stories never repeat', async 
         const id = (req.input as any)[0].source;
         order.push(id);
         attempts[id] = (attempts[id] ?? 0) + 1;
-        if (id === 'c' || (id === 'b' && attempts[id] === 1)) throw new Error('Transient error');
+        if (id === 'c1' || (id === 'b1' && attempts[id] === 1))
+          throw new Error('Truncated Synthesis: output token limit');
         return { json: draft };
       }
       return { json: { verdicts: [{ id: 'summary', supported: true, reasons: [] }] } };
     },
   };
   try {
-    const result = await summarizeStories(stories, {
+    const result = await summarizeStories(pairStories, {
       enabled: true,
       llm,
       maxCalls: 60,
       cache: state.cache,
       pause,
     });
-    assert.deepEqual(order, ['a', 'b', 'c', 'b', 'c', 'c']);
+    assert.deepEqual(order, ['a1', 'b1', 'c1', 'b1', 'c1', 'c1']);
     assert.deepEqual(
       result.map((r) => r.status),
       ['ready', 'ready', 'exhausted'],
@@ -76,28 +82,146 @@ test('three rounds only retry failures; successful stories never repeat', async 
   }
 });
 
-test('rejected verification is retried, only accepted summaries are cached', async () => {
+test('rejected verification is never re-billed: one paid attempt, then the story stops', async () => {
   const state = setup();
-  let verification = 0;
+  let synthesis = 0;
   try {
-    const result = await summarizeStories(stories.slice(0, 1), {
+    const result = await summarizeStories(pairStories.slice(0, 1), {
       enabled: true,
       maxCalls: 6,
       cache: state.cache,
       pause,
       llm: {
         async generateJson(req) {
-          if (req.label === 'Synthesis') return { json: draft };
+          if (req.label === 'Synthesis') {
+            synthesis++;
+            return { json: draft };
+          }
           return {
-            json: {
-              verdicts: [{ id: 'summary', supported: ++verification === 3, reasons: ['Check'] }],
-            },
+            json: { verdicts: [{ id: 'summary', supported: false, reasons: ['Check'] }] },
           };
         },
       },
     });
+    assert.equal(result[0].status, 'unavailable');
+    assert.equal(result[0].attempts.length, 1);
+    assert.equal(synthesis, 1);
+    assert.equal(
+      existsSync(state.path) ? Object.keys(JSON.parse(readFileSync(state.path, 'utf8'))).length : 0,
+      0,
+    );
+  } finally {
+    state.cleanup();
+  }
+});
+
+test('single-source stories never get a paid rewrite, even with a cached summary', async () => {
+  const state = setup();
+  let calls = 0;
+  try {
+    state.cache.save(summaryFingerprint(stories[0].items), {
+      synthesis: attachSummaryMembership(draft, stories[0].items),
+    });
+    const result = await summarizeStories(stories.slice(0, 1), {
+      enabled: true,
+      maxCalls: 10,
+      cache: summaryCache(state.path),
+      pause,
+      llm: {
+        async generateJson() {
+          calls++;
+          throw new Error('must not call');
+        },
+      },
+    });
+    assert.equal(result[0].status, 'single_source');
+    assert.equal(result[0].synthesis, undefined);
+    assert.equal(calls, 0);
+  } finally {
+    state.cleanup();
+  }
+});
+
+test('a side merges paid prose only when it has several sources', () => {
+  assert.deepEqual(summarizedSides([item('a')]), []);
+  assert.deepEqual(summarizedSides([item('a'), item('b')]), ['center']);
+  assert.deepEqual(summarizedSides([sideItem('l', 'left'), sideItem('r', 'right')]), []);
+  assert.deepEqual(
+    summarizedSides([
+      sideItem('l1', 'left'),
+      sideItem('l2', 'center_left'),
+      sideItem('r', 'right'),
+    ]),
+    ['left'],
+  );
+});
+
+test('eligible story with single-source sides keeps differences without paid side prose', async () => {
+  const state = setup();
+  const verified: string[] = [];
+  const eligible = { items: [sideItem('l1', 'left'), sideItem('r1', 'right')] };
+  try {
+    const result = await summarizeStories([eligible], {
+      enabled: true,
+      maxCalls: 10,
+      cache: state.cache,
+      pause,
+      llm: {
+        async generateJson(req) {
+          if (req.label === 'Synthesis') {
+            assert.match(req.system as string, /Summarize ONLY these sides: none/);
+            return {
+              json: {
+                sides: { left: '', center: '', right: '' },
+                differences: [
+                  {
+                    right: 'ימין מדווח אחרת',
+                    left: 'שמאל מדווח אחרת',
+                    right_article_ids: [1],
+                    left_article_ids: [0],
+                  },
+                ],
+              },
+            };
+          }
+          verified.push((req.input as any).candidates?.[0]?.id ?? (req.input as any)[0]?.id ?? '?');
+          return { json: { verdicts: [{ id: 'comparison', supported: true, reasons: [] }] } };
+        },
+      },
+    });
     assert.equal(result[0].status, 'ready');
-    assert.equal(result[0].attempts.length, 3);
+    assert.equal(result[0].comparison?.status, 'ready');
+    assert.deepEqual(verified, ['comparison']);
+    assert.ok(Object.values(result[0].synthesis!.sides).every((s) => s.summary.length === 0));
+  } finally {
+    state.cleanup();
+  }
+});
+
+test('stray prose on a single-source side is dropped, merged sides keep theirs', async () => {
+  const state = setup();
+  const mixed = {
+    items: [item('c1'), item('c2'), sideItem('l1', 'left')],
+  };
+  try {
+    const result = await summarizeStories([mixed], {
+      enabled: true,
+      maxCalls: 10,
+      cache: state.cache,
+      pause,
+      llm: {
+        async generateJson(req) {
+          if (req.label === 'Synthesis') {
+            assert.match(req.system as string, /Summarize ONLY these sides: center/);
+            return { json: { sides: { left: 'תקציר שמאל', center: 'טקסט מקור', right: '' } } };
+          }
+          return { json: { verdicts: [{ id: 'summary', supported: true, reasons: [] }] } };
+        },
+      },
+    });
+    assert.equal(result[0].status, 'ready');
+    assert.equal(result[0].synthesis!.sides.left.summary.length, 0);
+    assert.equal(result[0].synthesis!.sides.center.summary.length, 1);
   } finally {
     state.cleanup();
   }
@@ -118,20 +242,20 @@ test('success survives a fresh cache instance, other absent stories, disabled ru
     },
   };
   try {
-    await summarizeStories(stories.slice(0, 1), {
+    await summarizeStories(pairStories.slice(0, 1), {
       enabled: true,
       llm,
       maxCalls: 2,
       cache: state.cache,
       pause,
     });
-    await summarizeStories(stories.slice(1), {
+    await summarizeStories(pairStories.slice(1), {
       enabled: false,
       maxCalls: 0,
       cache: summaryCache(state.path),
       pause,
     });
-    const result = await summarizeStories(stories.slice(0, 1), {
+    const result = await summarizeStories(pairStories.slice(0, 1), {
       enabled: true,
       llm,
       maxCalls: 0,
@@ -184,7 +308,7 @@ test('rate-limit stops later paid requests; call cap bounds all rounds', async (
     const state = setup();
     let calls = 0;
     try {
-      const result = await summarizeStories(stories, {
+      const result = await summarizeStories(pairStories, {
         enabled: true,
         maxCalls: 2,
         cache: state.cache,

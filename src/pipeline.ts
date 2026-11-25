@@ -48,7 +48,11 @@ import {
 } from './synthesis.ts';
 import { orderedEvidence, summarizeStories, summaryCache } from './summary-runner.ts';
 import { archiveCurrentEdition } from './editions.ts';
-import { comparisonDiagnostics, comparisonDetails } from './comparison-diagnostics.ts';
+import {
+  comparisonDetails,
+  comparisonDiagnostics,
+  summaryDiagnostics,
+} from './comparison-diagnostics.ts';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -265,6 +269,7 @@ async function main() {
       cache: summaryCache(join(ROOT, '.cache', 'synthesis.json')),
     },
   );
+  console.error(`summary outcomes: ${JSON.stringify(summaryDiagnostics(summaries))}`);
   console.error(
     `comparison outcomes: ${JSON.stringify(comparisonDiagnostics(clusters, summaries))}`,
   );

@@ -341,12 +341,12 @@ test('summary rejection still fails the whole attempt, comparison included', asy
       verify,
       pause,
     });
-    assert.equal(result[0].status, 'exhausted');
+    assert.equal(result[0].status, 'unavailable');
     assert.equal(result[0].synthesis, undefined);
     assert.equal(result[0].comparison, undefined);
-    assert.equal(calls, 3); // three rounds of one paid synthesis call each
+    assert.equal(calls, 1); // a rejected summary is never re-billed
     // A rejected summary ends the attempt before the comparison is ever verified.
-    assert.deepEqual(verifyCalls, [['summary'], ['summary'], ['summary']]);
+    assert.deepEqual(verifyCalls, [['summary']]);
   } finally {
     state.cleanup();
   }

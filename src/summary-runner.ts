@@ -5,6 +5,7 @@ import { canonicalUrl } from './article-registry.ts';
 import type { FeedItem } from './rss.ts';
 import type { LlmClient } from './llm.ts';
 import { sleep } from './http.ts';
+import { groupOf, type Group } from './config.ts';
 import {
   comparisonCandidate,
   comparisonToRaw,
@@ -54,6 +55,36 @@ export function summaryFingerprint(items: FeedItem[], verificationIdentity?: str
 export function hasSourceText(items: FeedItem[]): boolean {
   return items.length > 0 && synthesisInput(items).every((a) => a.evidence.trim().length > 0);
 }
+
+/** A side earns a paid summary only when it merges several distinct sources; one source shows as published. */
+export function summarizedSides(items: FeedItem[]): Group[] {
+  const sources: Record<Group, Set<string>> = {
+    left: new Set(),
+    center: new Set(),
+    right: new Set(),
+  };
+  for (const a of items) {
+    const group = groupOf(a.side);
+    if (group) sources[group].add(a.sourceName);
+  }
+  return (['left', 'center', 'right'] as const).filter((side) => sources[side].size >= 2);
+}
+
+/** Fixed error labels for public diagnostics and retry policy; raw errors stay private. */
+export function summaryErrorClass(error?: string): string {
+  if (!error) return 'none';
+  if (error === 'Verification rejected summary') return 'verification_rejected';
+  if (/budget exhausted/.test(error)) return 'attempt_budget';
+  if (/cost cap/.test(error)) return 'cost_cap';
+  const http = error.match(/HTTP (\d{3})/);
+  if (http) return 'http_' + http[1];
+  if (/Truncated/.test(error)) return 'output_limit';
+  if (/Invalid JSON|Empty Synthesis/.test(error)) return 'generation_output';
+  return 'generation_or_verification_error';
+}
+
+/** Only transient generation failures earn a paid re-roll; a rejected or failed call is never re-billed blindly. */
+const RETRYABLE_SUMMARY_ERRORS = new Set(['output_limit', 'generation_output']);
 
 export function summaryCache(path: string) {
   let entries: Record<string, { synthesis: StorySynthesis; comparison?: StoryComparison }> = {};
@@ -115,7 +146,10 @@ export async function summarizeStories(
     if (heldBack) result.status = 'grouping_unvalidated';
     else if (options.enabled) {
       if (!hasSourceText(items)) result.status = 'missing_text';
-      else {
+      else if (!summarizedSides(items).length && !qualifiesForComparison(items)) {
+        // Every side has a single source: the excerpt shows as published, no paid rewrite.
+        result.status = 'single_source';
+      } else {
         const cached = options.cache.get(fingerprint, items);
         result.synthesis = cached?.synthesis;
         result.comparison = cached?.comparison;
@@ -139,7 +173,9 @@ export async function summarizeStories(
       let acceptedComparison: StoryComparison | undefined;
       try {
         calls++;
-        const draft = await synthesizeStory(stories[i].items, options.llm);
+        const draft = await synthesizeStory(stories[i].items, options.llm, {
+          summarizeSides: summarizedSides(stories[i].items),
+        });
         attempt.draft = draft;
         if (draft.comparison_error) attempt.comparison_error = draft.comparison_error;
         const asCandidate = draft.comparison ? comparisonCandidate(draft.comparison) : undefined;
@@ -150,13 +186,20 @@ export async function summarizeStories(
         // The summary is verified alone, in the same single-candidate shape as every
         // non-qualifying story; the comparison's extra question set is checked only
         // afterwards, so it can never change how the summary itself is judged.
-        calls++;
-        const summaryVerdicts = await verify(stories[i].items, [
-          { id: 'summary', summary: draft.synthesis },
-        ]);
-        attempt.verdicts = summaryVerdicts;
-        if (!summaryVerdicts.find((v) => v.id === 'summary')?.supported)
-          throw new Error('Verification rejected summary');
+        // A story whose sides all show as-published excerpts has no generated prose to verify.
+        const hasSummaryProse = Object.values(draft.synthesis.sides).some(
+          (side) => side.summary.length,
+        );
+        let summaryVerdicts: Verdict[] = [];
+        if (hasSummaryProse) {
+          calls++;
+          summaryVerdicts = await verify(stories[i].items, [
+            { id: 'summary', summary: draft.synthesis },
+          ]);
+          attempt.verdicts = summaryVerdicts;
+          if (!summaryVerdicts.find((v) => v.id === 'summary')?.supported)
+            throw new Error('Verification rejected summary');
+        }
         accepted = draft.synthesis;
         if (draft.comparison && asCandidate) {
           calls++;
@@ -175,8 +218,13 @@ export async function summarizeStories(
           acceptedComparison = draft.comparison;
         }
       } catch (e) {
-        attempt.error = (e as Error).message.slice(0, 250);
-        if (/HTTP (402|429|503|403)/.test((e as Error).message)) unavailable = true;
+        const message = (e as Error).message.slice(0, 250);
+        attempt.error = message;
+        if (/HTTP (402|429|503|403)/.test(message)) unavailable = true;
+        // Deterministic failures (verification rejects, budget, HTTP errors) stop this story:
+        // re-billing the same prompt does not fix them. Only transient classes retry next round.
+        if (!RETRYABLE_SUMMARY_ERRORS.has(summaryErrorClass(message)))
+          result.status = 'unavailable';
       }
       if (accepted) {
         options.cache.save(result.fingerprint, {

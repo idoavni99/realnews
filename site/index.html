@@ -72,8 +72,8 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--right); outline
 .raw-rss { background:#fff8e6; border:1.5px dashed #d9b45c; border-radius:10px; padding:10px 12px; margin-top:8px; }
 .raw-rss .raw-badge { display:inline-block; font-size:11px; font-weight:700; color:#7a5b00; background:#f7e9c3; border:1px solid #e3cd8f; border-radius:10px; padding:1px 8px; margin-bottom:6px; }
 .raw-rss p { font-size:14px; margin-top:2px; }
-.raw-rss .raw-src { display:block; font-size:12px; color:var(--ink2); margin-top:6px; }
-.raw-rss .raw-src a { color:inherit; }
+.raw-rss .raw-src, .side-summary > .raw-src { display:block; font-size:12px; color:var(--ink2); margin-top:6px; }
+.raw-src a { color:inherit; }
 .evidence { display:block; font-size:12px; color:var(--ink2); margin-top:5px; }
 .note { font-size:13px; color:var(--ink2); margin-top:12px; }
 footer.health { margin-top: 28px; color: var(--ink2); font-size: 12px; }
@@ -231,21 +231,32 @@ function renderFeed() {
     ${!CURRENT_EDITION && staleH > 36 ? '<br><span class="stale">הנתונים לא התעדכנו לאחרונה - ייתכן שהריצה היומית מושהית.</span>' : ''}</footer>`;
 }
 
-/* Raw RSS fallback: a side without a verified summary shows the first source's
-   RSS summary exactly as published, styled so it can never read as verified. */
+/* A side with one source shows that source's RSS summary as published, with plain
+   attribution and no warning badge. Only a multi-source side whose merged summary is
+   missing keeps the unverified styling: there the excerpt stands in for failed work. */
+function sideSourceCount(s, side) {
+  return new Set(s.articles.filter(a=>GROUP_SIDES[side].includes(a.side)).map(a=>a.source)).size;
+}
 function rawRssHtml(s, side) {
   const first=s.articles.find(a=>GROUP_SIDES[side].includes(a.side) && (a.summary||'').trim());
   if(!first) return `<p>יש כתבות, אך אין סיכום מאומת זמין.</p>`;
+  if(sideSourceCount(s, side)<=1)
+    return `<p>${esc(first.summary)}</p><span class="raw-src">תקציר הכתבה כפי שהתפרסם בפיד של <a href="${first.url}" target="_blank" rel="noopener">${esc(first.source)}</a>.</span>`;
   return `<div class="raw-rss" role="note"><span class="raw-badge">תקציר RSS גולמי · לא עבר אימות</span><p>${esc(first.summary)}</p><span class="raw-src">תקציר הכתבה כפי שהתפרסם בפיד של <a href="${first.url}" target="_blank" rel="noopener">${esc(first.source)}</a>. טקסט גולמי של המקור, לא סיכום מאומת, ועלול להיות חלקי.</span></div>`;
 }
 
 function sideSummariesHtml(s) {
   if(s.grouping_status==='unvalidated')return '<p class="note">לא מוצגים סיכומי צדדים או מסקנות על היעדר כיסוי עד להשלמת הקיבוץ.</p>';
   const ready = s.synthesis_status === 'ready' && s.synthesis;
-  const intro = ready ? 'סיכומים אוטומטיים שנבדקו מול הטקסט שנאסף. גם בדיקה אוטומטית עלולה לטעות.' : 'אין סיכום מאומת כרגע. במקומו מוצג תקציר ה-RSS הגולמי של המקור הראשון בכל צד, כפי שהתפרסם - לא אומת ועלול להיות חלקי.';
+  const anyMergedSide = SIDE_ORDER.some(side=>sideSourceCount(s, side)>=2);
+  const intro = !anyMergedSide
+    ? 'מוצגים תקצירי הכתבות כפי שהתפרסמו בפיד של כל מקור.'
+    : ready ? 'סיכומים אוטומטיים שנבדקו מול הטקסט שנאסף. גם בדיקה אוטומטית עלולה לטעות.' : 'אין סיכום מאומת כרגע. במקומו מוצג תקציר ה-RSS הגולמי של המקור הראשון בכל צד, כפי שהתפרסם - לא אומת ועלול להיות חלקי.';
   return `<h3 class="sec">מה מדווחים לפי צד</h3><p class="note">${intro}</p>` + SIDE_ORDER.map(side => {
     const found=s.articles.some(a=>GROUP_SIDES[side].includes(a.side));
-    const rows=ready ? s.synthesis.sides[side]?.summary || [] : [];
+    // Verified rows render only where several sources were actually merged; a single-source
+    // side always shows the excerpt as published, even if an older cached summary exists.
+    const rows=ready && sideSourceCount(s, side)>=2 ? s.synthesis.sides[side]?.summary || [] : [];
     const absent=DATA.grouping?.partial ? 'לא נכללו כאן כתבות מצד זה. הסיקור חלקי ולכן אין להסיק שלא דווח בנושא.' : groupMonitored(side) ? 'לא נמצאו כתבות בנושא במקורות שבמעקב.' : 'הצד הזה אינו במעקב כרגע.';
     return `<section class="side-summary ${side}"><h3>${SIDE_HE[side]}</h3>${rows.length ? rows.map(row=>`<p>${esc(row.text)}<span class="evidence">${row.evidence_kind==='side_membership'?'מקורות בצד זה (לא ציטוט לכל טענה)':'מקורות'}: ${row.article_ids.map(id=>s.articles[id]).filter(Boolean).map(a=>esc(a.source)).join(' · ')}</span></p>`).join('') : (found ? rawRssHtml(s, side) : `<p>${absent}</p>`)}</section>`;
   }).join('') + (s.caveats||[]).map(c=>`<p class="note">${esc(c)}</p>`).join('');

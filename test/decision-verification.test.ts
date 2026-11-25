@@ -19,6 +19,15 @@ const items: FeedItem[] = [
     summary: 'נפצעו שני אנשים לכאורה',
     published: '',
   },
+  {
+    source: 'b',
+    sourceName: 'B',
+    side: 'center',
+    title: 'מקור נוסף',
+    url: 'https://example.com/b',
+    summary: 'פרטים נוספים על האירוע',
+    published: '',
+  },
 ];
 const prose = { sides: { left: '', center: 'נפצעו שני אנשים לכאורה', right: '' } };
 const candidate = { id: 'summary', summary: attachSummaryMembership(prose, items) };

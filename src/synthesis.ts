@@ -297,13 +297,22 @@ export interface StorySynthesisResult {
 export async function synthesizeStory(
   items: FeedItem[],
   llm: LlmClient | string,
+  options?: { summarizeSides?: string[] },
 ): Promise<StorySynthesisResult> {
   const withDifferences = qualifiesForComparison(items);
+  // Sides with a single source show the excerpt as published instead of a paid rewrite;
+  // the model is asked for an empty string there and any stray prose is dropped deterministically.
+  const summarize = options?.summarizeSides;
+  const sideScope =
+    summarize && summarize.length < 3
+      ? `\nSummarize ONLY these sides: ${summarize.length ? summarize.join(', ') : 'none'}. Return an empty string for every other side.`
+      : '';
   const { json } = await asClient(llm).generateJson({
     label: 'Synthesis',
-    system: withDifferences
-      ? SYNTHESIS_WITH_DIFFERENCES_INSTRUCTIONS + DIFFERENCES_INSTRUCTIONS
-      : SYNTHESIS_INSTRUCTIONS,
+    system:
+      (withDifferences
+        ? SYNTHESIS_WITH_DIFFERENCES_INSTRUCTIONS + DIFFERENCES_INSTRUCTIONS
+        : SYNTHESIS_INSTRUCTIONS) + sideScope,
     input: synthesisInput(items),
     schema: withDifferences ? SYNTHESIS_WITH_DIFFERENCES_SCHEMA : SYNTHESIS_SCHEMA,
     temperature: 0.1,
@@ -320,6 +329,9 @@ export async function synthesizeStory(
   )
     throw new Error('Unexpected synthesis field');
   const synthesis = attachSummaryMembership({ sides: value.sides }, items);
+  if (summarize)
+    for (const side of ['left', 'center', 'right'] as const)
+      if (!summarize.includes(side)) synthesis.sides[side].summary = [];
   let comparison: StoryComparison | undefined;
   let comparison_error: string | undefined;
   if (withDifferences) {
