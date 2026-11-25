@@ -1,7 +1,7 @@
 import { qualifiesForComparison } from './synthesis.ts';
 import { VERIFICATION_CHECK_NAMES } from './decision-verification.ts';
 import type { FeedItem } from './rss.ts';
-import type { SummaryResult } from './summary-runner.ts';
+import { summaryErrorClass, type SummaryResult } from './summary-runner.ts';
 
 function comparisonErrorClass(error: string) {
   if (['Invalid difference citation', 'Citation without difference text'].includes(error))
@@ -25,18 +25,6 @@ function failedChecks(verdicts: unknown, id: string): string[] | undefined {
   });
 }
 
-function summaryErrorClass(error?: string) {
-  if (!error) return 'none';
-  if (error === 'Verification rejected summary') return 'verification_rejected';
-  if (/budget exhausted/.test(error)) return 'attempt_budget';
-  if (/cost cap/.test(error)) return 'cost_cap';
-  const http = error.match(/HTTP (\d{3})/);
-  if (http) return 'http_' + http[1];
-  if (/Truncated/.test(error)) return 'output_limit';
-  if (/Invalid JSON|Empty Synthesis/.test(error)) return 'generation_output';
-  return 'generation_or_verification_error';
-}
-
 /** Public diagnostics use fixed labels and counters, never raw errors, text, prompts, URLs or fingerprints. */
 export function comparisonDetails(stories: { items: FeedItem[] }[], results: SummaryResult[]) {
   const allowedStatuses = new Set([
@@ -46,6 +34,7 @@ export function comparisonDetails(stories: { items: FeedItem[] }[], results: Sum
     'missing_text',
     'not_configured',
     'grouping_unvalidated',
+    'single_source',
     'pending',
   ]);
   return stories.flatMap((story, index) => {
@@ -130,4 +119,29 @@ export function comparisonDiagnostics(stories: { items: FeedItem[] }[], results:
     }
   }
   return counts;
+}
+
+/** Per-status summary counters and fixed-label failure classes for every story, not only eligible ones. */
+export function summaryDiagnostics(results: SummaryResult[]) {
+  const counts: Record<string, number> = {
+    ready: 0,
+    cache_hits: 0,
+    single_source: 0,
+    missing_text: 0,
+    grouping_unvalidated: 0,
+    not_configured: 0,
+    unavailable: 0,
+    exhausted: 0,
+  };
+  const failure_classes: Record<string, number> = {};
+  for (const result of results) {
+    counts[result.status in counts ? result.status : 'unavailable']++;
+    if (result.status === 'ready' && !result.attempts.length) counts.cache_hits++;
+    for (const attempt of result.attempts) {
+      if (!attempt.error) continue;
+      const label = summaryErrorClass(attempt.error);
+      failure_classes[label] = (failure_classes[label] ?? 0) + 1;
+    }
+  }
+  return { ...counts, failure_classes };
 }
